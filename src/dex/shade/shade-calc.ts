@@ -1,6 +1,6 @@
 import BigNumber from 'bignumber.js';
-import { TheStore, useTokens } from '../shade/shade-rest';
-import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../utils/denoms';
+import { TheStore, useTokens } from './shade-rest';
+import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../../utils/denoms';
 
 let math = BigNumber;
 

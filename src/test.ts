@@ -1,6 +1,6 @@
-import { getPegPrice, getShadePairs, tokens } from './shade/shade-rest';
+import { getPegPrice, getShadePairs, tokens } from './dex/shade';
 import _ from 'lodash';
-import { calculateBestShadeSwapRoutes, printShadeSwapRoute } from './calc/shade';
+import { calculateBestShadeSwapRoutes, printShadeSwapRoute } from './dex/shade';
 import BigNumber from 'bignumber.js';
 
 (async () => {
