@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+message Coin {
+  string denom = 1;
+  string amount = 2;
+}
+
+message Duration {
+  // Signed seconds of the span of time. Must be from -315,576,000,000
+  // to +315,576,000,000 inclusive. Note: these bounds are computed from:
+  // 60 sec/min * 60 min/hr * 24 hr/day * 365.25 days/year * 10000 years
+  int64 seconds = 1;
+
+  // Signed fractions of a second at nanosecond resolution of the span
+  // of time. Durations less than one second are represented with a 0
+  // `seconds` field and a positive or negative `nanos` field. For durations
+  // of one second or more, a non-zero value for the `nanos` field must be
+  // of the same sign as the `seconds` field. Must be from -999,999,999
+  // to +999,999,999 inclusive.
+  int32 nanos = 2;
+}
+
+// MsgLiquidStake defines a SDK message for performing a liquid stake of coins
+// from a delegator to whitelisted validators.
+message MsgLiquidStake {
+  option (gogoproto.equal)           = false;
+  option (gogoproto.goproto_getters) = false;
+
+  string                   delegator_address = 1 [(gogoproto.moretags) = "yaml:\"delegator_address\""];
+  Coin amount            = 2 [(gogoproto.nullable) = false];
+}
+
+message MsgStake {
+  option (gogoproto.goproto_getters) = false;
+
+  // farmer defines the bech32-encoded address of the farmer
+  string farmer = 1;
+
+  // staking_coins specifies coins to stake
+  repeated Coin staking_coins = 2 [
+    (gogoproto.moretags)     = "yaml:\"staking_coins\"",
+    (gogoproto.castrepeated) = "github.com/cosmos/cosmos-sdk/types.Coins",
+    (gogoproto.nullable)     = false
+  ];
+}
+
+message MsgHarvest {
+  option (gogoproto.goproto_getters) = false;
+
+  // farmer defines the bech32-encoded address of the farmer
+  string farmer = 1;
+
+  // staking_coin_denoms is the set of denoms of staked coins as a source of the reward for
+  // harvesting
+  repeated string staking_coin_denoms = 2 [(gogoproto.moretags) = "yaml:\"staking_coin_denoms\""];
+}
+
+message MsgDeposit {
+  // depositor specifies the bech32-encoded address that makes a deposit to the pool
+  string depositor = 1;
+
+  // pool_id specifies the pool id
+  uint64 pool_id = 2;
+
+  // deposit_coins specifies the amount of coins to deposit.
+  repeated Coin deposit_coins = 3
+  [(gogoproto.castrepeated) = "github.com/cosmos/cosmos-sdk/types.Coins", (gogoproto.nullable) = false];
+}
+
+// OrderDirection enumerates order directions.
+enum OrderDirection {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  // ORDER_DIRECTION_UNSPECIFIED specifies unknown order direction
+  ORDER_DIRECTION_UNSPECIFIED = 0 [(gogoproto.enumvalue_customname) = "OrderDirectionUnspecified"];
+
+  // ORDER_DIRECTION_BUY specifies buy(swap quote coin to base coin) order direction
+  ORDER_DIRECTION_BUY = 1 [(gogoproto.enumvalue_customname) = "OrderDirectionBuy"];
+
+  // ORDER_DIRECTION_SELL specifies sell(swap base coin to quote coin) order direction
+  ORDER_DIRECTION_SELL = 2 [(gogoproto.enumvalue_customname) = "OrderDirectionSell"];
+}
+
+// MsgMarketOrder defines an SDK message for making a market order
+message MsgMarketOrder {
+  // orderer specifies the bech32-encoded address that makes an order
+  string orderer = 1;
+
+  // pair_id specifies the pair id
+  uint64 pair_id = 2;
+
+  // direction specifies the order direction(buy or sell)
+  OrderDirection direction = 3;
+
+  // offer_coin specifies the amount of coin the orderer offers
+  Coin offer_coin = 4 [(gogoproto.nullable) = false];
+
+  // demand_coin_denom specifies the demand coin denom
+  string demand_coin_denom = 5;
+
+  // amount specifies the amount of base coin the orderer wants to buy or sell
+  string amount = 6 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int", (gogoproto.nullable) = false];
+
+  // order_lifespan specifies the order lifespan
+  Duration order_lifespan = 7;
+}
+
+// MsgCancelAllOrders defines an SDK message for cancelling all orders
+message MsgCancelAllOrders {
+  // orderer specifies the bech32-encoded address that makes an order
+  string orderer = 1;
+
+  // pair_ids specifies pair ids to cancel orders
+  repeated uint64 pair_ids = 2;
+}
+
+// MsgLimitOrder defines an SDK message for making a limit order
+message MsgLimitOrder {
+  // orderer specifies the bech32-encoded address that makes an order
+  string orderer = 1;
+
+  // pair_id specifies the pair id
+  uint64 pair_id = 2;
+
+  // direction specifies the order direction(buy or sell)
+  OrderDirection direction = 3;
+
+  // offer_coin specifies the amount of coin the orderer offers
+  Coin offer_coin = 4 [(gogoproto.nullable) = false];
+
+  // demand_coin_denom specifies the demand coin denom
+  string demand_coin_denom = 5;
+
+  // price specifies the order price
+  string price = 6 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Dec", (gogoproto.nullable) = false];
+
+  // amount specifies the amount of base coin the orderer wants to buy or sell
+  string amount = 7 [(gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int", (gogoproto.nullable) = false];
+
+  // order_lifespan specifies the order lifespan
+  Duration order_lifespan = 8;
+}
