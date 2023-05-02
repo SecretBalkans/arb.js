@@ -66,7 +66,7 @@ export class ArbWallet {
     const { bech32Prefix, coinType } = this.getChainConfig(chain);
     const mnemonic = this.config.mnemonic;
     if (mnemonic) {
-      return await DirectSecp256k1HdWallet.fromMnemonic(Buffer.from(fromBase64(mnemonic)).toString('utf-8'), {
+      return await DirectSecp256k1HdWallet.fromMnemonic(mnemonic/*Buffer.from(fromBase64(mnemonic)).toString('utf-8')*/, {
         hdPaths: [stringToPath(`m/44'/${coinType}'/${pathSuffix.includes('/') ? pathSuffix : `0'/0/${pathSuffix}`}`)],
         prefix: bech32Prefix,
       });
@@ -99,7 +99,7 @@ export class ArbWallet {
   public async getSecretPen(): Promise<Secp256k1Pen> {
     const mnemonic = this.config.mnemonic;
     if (mnemonic) {
-      return await Secp256k1Pen.fromMnemonic(Buffer.from(fromBase64(mnemonic)).toString('utf-8'));
+      return await Secp256k1Pen.fromMnemonic(mnemonic/*Buffer.from(fromBase64(mnemonic)).toString('utf-8')*/);
     } else {
       const privateKey = this.getPrivateKey();
       let uint8arr = new Uint8Array(privateKey);
