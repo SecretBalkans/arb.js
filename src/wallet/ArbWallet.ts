@@ -66,7 +66,12 @@ export class ArbWallet {
     const { bech32Prefix, coinType } = this.getChainConfig(chain);
     const mnemonic = this.config.mnemonic;
     if (mnemonic) {
-      return await DirectSecp256k1HdWallet.fromMnemonic(mnemonic/*Buffer.from(fromBase64(mnemonic)).toString('utf-8')*/, {
+      let parsedMnemonic = mnemonic;
+      try {
+        parsedMnemonic = Buffer.from(fromBase64(mnemonic)).toString('utf-8');
+      } catch {
+      }
+      return await DirectSecp256k1HdWallet.fromMnemonic(parsedMnemonic, {
         hdPaths: [stringToPath(`m/44'/${coinType}'/${pathSuffix.includes('/') ? pathSuffix : `0'/0/${pathSuffix}`}`)],
         prefix: bech32Prefix,
       });
@@ -84,7 +89,12 @@ export class ArbWallet {
   ): Promise<Secp256k1Wallet> {
     const mnemonic = this.config.mnemonic;
     if (mnemonic) {
-      const mnemonicChecked = new EnglishMnemonic(mnemonic);
+      let parsedMnemonic = mnemonic;
+      try {
+        parsedMnemonic = Buffer.from(fromBase64(mnemonic)).toString('utf-8');
+      } catch {
+      }
+      const mnemonicChecked = new EnglishMnemonic(parsedMnemonic);
       const seed = await Bip39.mnemonicToSeed(mnemonicChecked);
       const path = stringToPath(`m/44'/${coinType}'/${pathSuffix.includes('/') ? pathSuffix : `0'/0/${pathSuffix}`}`);
       const { privkey } = Slip10.derivePath(Slip10Curve.Secp256k1, seed, path);
@@ -99,7 +109,12 @@ export class ArbWallet {
   public async getSecretPen(): Promise<Secp256k1Pen> {
     const mnemonic = this.config.mnemonic;
     if (mnemonic) {
-      return await Secp256k1Pen.fromMnemonic(mnemonic/*Buffer.from(fromBase64(mnemonic)).toString('utf-8')*/);
+      let parsedMnemonic = mnemonic;
+      try {
+        parsedMnemonic = Buffer.from(fromBase64(mnemonic)).toString('utf-8');
+      } catch {
+      }
+      return await Secp256k1Pen.fromMnemonic(parsedMnemonic);
     } else {
       const privateKey = this.getPrivateKey();
       let uint8arr = new Uint8Array(privateKey);
@@ -229,7 +244,7 @@ export class ArbWallet {
     });
     if (result) {
       if (useResultCache) {
-         _.set(this.CONTRACT_MSG_CACHE, cacheKey, result);
+        _.set(this.CONTRACT_MSG_CACHE, cacheKey, result);
       }
       this.CODE_HASH_CACHE[contractAddress] = this.CODE_HASH_CACHE[contractAddress] || codeHash;
       return result;
