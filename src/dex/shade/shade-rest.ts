@@ -1,10 +1,11 @@
-import { fetchTimeout } from '../utils/rest';
+import { fetchTimeout } from '../../utils';
 import _ from 'lodash';
 import Aigle from 'aigle';
-import { ArbWallet } from '../wallet/ArbWallet';
+import { ArbWallet } from '../../wallet/ArbWallet';
 import BigNumber from 'bignumber.js';
-import { convertCoinFromUDenomV2 } from '../utils/denoms';
-import config from "../config";
+import { convertCoinFromUDenomV2 } from '../../utils';
+import config from "../../config";
+import https from 'https';
 
 //TODO: Convert to ShadeSDK with init,subscribe functions to keep a
 // local up to date state of pools,peg,borrows,etc. updated each block and
@@ -13,7 +14,7 @@ import config from "../config";
 let arb = new ArbWallet({
   mnemonic: config.secrets.cosmos.mnemonic,
   privateHex: config.secrets.cosmos.privateHex,
-  secretNetworkViewingKey:   config.secrets.secret.apiKey
+  secretNetworkViewingKey: config.secrets.secret.apiKey
 });
 
 export async function getPegPrice(): Promise<number> {
@@ -30,8 +31,12 @@ interface TokenPriceInfo {
 }
 
 export async function getTokenPrices(): Promise<TokenPriceInfo[]> {
-  tokens = tokens || await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/tokens');
-  return fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/token_prices', {}, 10000);
+  tokens = tokens || await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/tokens', {
+    agent: shadeApiHttpsAgent
+  });
+  return fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/token_prices', {
+    agent: shadeApiHttpsAgent
+  }, 10000);
 }
 
 interface Contract {
@@ -187,8 +192,16 @@ export interface TokenPairInfoRaw {
   flags: string[]; // derivative/stable
 }
 
+const shadeApiHttpsAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 3000,
+  maxSockets: 5,
+});
+
 export async function getPairsRaw(): Promise<TokenPairInfoRaw[]> {
-  pairs = pairs || await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/shadeswap/pairs', {}, 10000);
+  pairs = pairs || await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/shadeswap/pairs', {
+    agent: shadeApiHttpsAgent
+  }, 10000);
   return pairs;
 }
 
@@ -243,6 +256,14 @@ export const useTokens = () => ({
     return _.find(tokens, { id: tokenId }).decimals;
   },
 })
+
+export function getShadeTokenBySymbol (symbol: string) {
+  const token = _.find(tokens, (d) => _.trimStart(d.symbol, 's') === symbol && d.flags.includes('swappable') && !d.flags.includes('native'))
+  if(!token) {
+    throw new Error(`No Shade token wih symbol=${symbol} found in registry. Fix search probably`);
+  }
+  return token;
+}
 
 export function parsePoolsRaw(e: TokenPairInfoRaw[]): { [p: string]: { stakingContract: any; fees: any; token0Id: any; contract: any; token1Id: any; flags: any; token0Amount: BigNumber; rewardTokens: any; stableParams: any; id: any; lpTokenId: any; metrics: { volume: any; liquidity: BigNumber; currency: any; apy: any }; token1Amount: BigNumber } } {
   return e.reduce((t, n) => {

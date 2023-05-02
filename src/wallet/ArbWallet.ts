@@ -34,7 +34,7 @@ export class ArbWallet {
   constructor(config: ArbWalletConfig) {
     this.config = config;
     if (!this.config.mnemonic && !this.config.privateHex) {
-      throw new Error(`Config ./.secrets.js should contain valid { privateHex: "i.e. keplr private hex string" } OR { mnemonic: "space separated words" }`);
+      throw new Error(`Config ./.secrets.js should contain valid cosmos: { privateHex: "i.e. keplr private hex string" } OR cosmos: { mnemonic: "space separated words" }`);
     }
   }
 
