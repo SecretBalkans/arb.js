@@ -10,8 +10,9 @@ import { fromBase64, MsgExecuteContract, SecretNetworkClient } from 'secretjsbet
 import { SignDoc } from 'secretjsbeta/dist/protobuf/cosmos/tx/v1beta1/tx';
 import { serializeSignDoc, serializeStdSignDoc } from './signUtils';
 import _ from 'lodash';
+import { SecretContractAddress } from '../dex/shade/types';
 
-export type ArbWalletConfig = { mnemonic?: string, privateHex?: string, secretNetworkViewingKey: string };
+export type ArbWalletConfig = { mnemonic?: string, privateHex?: string, secretNetworkViewingKey: string, secretLcdUrl?: string };
 
 export enum ArbChain {
   SECRET,
@@ -129,7 +130,7 @@ export class ArbWallet {
     };
   };
 
-  public async getSecretNetworkClient(chain = ArbChain.SECRET, url: string = 'https://lcd.secret.express'): Promise<SecretNetworkClient> {
+  public async getSecretNetworkClient(chain = ArbChain.SECRET, url: string = this.config.secretLcdUrl): Promise<SecretNetworkClient> {
     if (!this.secretClient) {
       const senderAddress = await this.getAddress(chain);
       const signer = await this.getSecretSigner();
@@ -202,7 +203,7 @@ export class ArbWallet {
    @param asset.address string
    @param asset.decimals number
    * */
-  public async getSecretBalance(asset: { address: string, decimals: number }): Promise<number> {
+  public async getSecretBalance(asset: { address: SecretContractAddress, decimals: number }): Promise<number> {
     const client = await this.getSecretNetworkClient();
     const result = await this.querySecretContract(asset.address, {
       balance: {
@@ -226,8 +227,9 @@ export class ArbWallet {
    * @param contractAddress string The address of the contract to query
    * @param msg object A JSON object that will be passed to the contract as a query
    * @param codeHash optional for faster resolution
+   * @param useResultCache allow caching of result. Useful if querying static blockchain data
    */
-  public async querySecretContract<T extends object, R extends any>(contractAddress: string, msg: T, codeHash?: string, useResultCache = false) {
+  public async querySecretContract<T extends object, R extends any>(contractAddress: SecretContractAddress, msg: T, codeHash?: string, useResultCache = false) {
     const client = await this.getSecretNetworkClient();
     if (codeHash || !this.CODE_HASH_CACHE[contractAddress]) {
       this.CODE_HASH_CACHE[contractAddress] = (await client.query.compute.codeHashByContractAddress({ contract_address: contractAddress })).code_hash;

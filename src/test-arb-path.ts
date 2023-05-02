@@ -1,21 +1,34 @@
-import { getPegPrice, getShadePairs, getShadeTokenBySymbol, tokens } from './dex/shade';
-import _ from 'lodash';
-import { calculateBestShadeSwapRoutes, printShadeSwapRoute } from './dex/shade';
-import BigNumber from 'bignumber.js';
-import { calculateBestOsmosisSwapRoute, getOsmoPools } from './dex/osmosis';
-import { convertCoinFromUDenomV2 } from './utils';
-import { makeIBCMinimalDenom } from './utils/ibcAssets';
+import ShadeSwap from './dex/shade';
+import OsmosisSwap from './dex/osmosis';
+import { DexStore } from './arbitrage/dexArbitrage';
 
 (async () => {
+  const dexStore = new DexStore([
+    new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
+    new ShadeSwap('https://rpc-secret.whispernode.com:443')]);
+  /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
+    next(d) {
+      console.log(`${d[0].height}/${d[0].pools.length}, ${d[1].height}/${d[1].pools.length}`);
+    },
+    error(err) {
+      console.error(err);
+    },
+  });*/
+  const arbSub = dexStore.subscribeDexArbitrage().subscribe({
+    next(arbs) {
+      arbs.forEach(arb => arb.print())
+    }
+  })
+  /*
   while (true) {
     console.time('cycle');
     // Always called to initialize the Shade protocol local store
     await Promise.all([
       getPegPrice(),
       getShadePairs(),
-      getOsmoPools()
+      getOsmoPools(),
     ]);
-    //
+
     // // This is how we use the basic function for swapping
     const endingToken = getShadeTokenBySymbol('USDC.axl');
     const startingToken = getShadeTokenBySymbol('SCRT');
@@ -27,20 +40,20 @@ import { makeIBCMinimalDenom } from './utils/ibcAssets';
     // SCRT on Osmosis
     const tokenOutDenomOsmo = makeIBCMinimalDenom('channel-88', 'uscrt');
     const [shadeRoute] = calculateBestShadeSwapRoutes({
-      inputTokenAmount: BigNumber(startingAmount*(10**startingToken.decimals)),
+      inputTokenAmount: BigNumber(startingAmount * (10 ** startingToken.decimals)),
       startingTokenId: startingToken.id,
       endingTokenId: endingToken.id,
       isReverse: false,
       maxHops: 6,
-    })
+    });
     const [osmo] = calculateBestOsmosisSwapRoute({
-      tokenInAmount: shadeRoute.quoteOutputAmount.dividedBy(10**endingToken.decimals).multipliedBy(10 ** tokenInOsmoDecimals),
+      tokenInAmount: shadeRoute.quoteOutputAmount.dividedBy(10 ** endingToken.decimals).multipliedBy(10 ** tokenInOsmoDecimals),
       tokenOutDenom: tokenOutDenomOsmo,
-      tokenInDenom: tokenInDenomOsmo
+      tokenInDenom: tokenInDenomOsmo,
     });
 
-    console.log(convertCoinFromUDenomV2(shadeRoute.inputAmount.toString(), startingToken.decimals).toFixed(4), startingToken.symbol, '-> shade ->', convertCoinFromUDenomV2(shadeRoute.quoteOutputAmount.toString(), endingToken.decimals).toFixed(4), endingToken.symbol)
-    console.log(convertCoinFromUDenomV2(shadeRoute.quoteOutputAmount.toString(), endingToken.decimals).toFixed(4), endingToken.symbol, '-> osmo ->', convertCoinFromUDenomV2(osmo.out.toString(), tokenOutOsmoDecimals).toString(), startingToken.symbol)
+    console.log(convertCoinFromUDenomV2(shadeRoute.inputAmount.toString(), startingToken.decimals).toFixed(4), startingToken.symbol, '-> shade ->', convertCoinFromUDenomV2(shadeRoute.quoteOutputAmount.toString(), endingToken.decimals).toFixed(4), endingToken.symbol);
+    console.log(convertCoinFromUDenomV2(shadeRoute.quoteOutputAmount.toString(), endingToken.decimals).toFixed(4), endingToken.symbol, '-> osmo ->', convertCoinFromUDenomV2(osmo.out.toString(), tokenOutOsmoDecimals).toString(), startingToken.symbol);
 
 
     // finally show how long it takes to load the current cycle.
@@ -50,5 +63,5 @@ import { makeIBCMinimalDenom } from './utils/ibcAssets';
 
     // basic cycle logic for re-entry of testing
     await new Promise(resolve => setTimeout(resolve, 5000));
-  }
+  }*/
 })();

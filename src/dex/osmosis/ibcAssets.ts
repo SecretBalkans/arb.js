@@ -1,6 +1,4 @@
-import { sha256 } from "@cosmjs/crypto";
-import { Buffer } from "buffer";
-import { SourceChainTokenConfigs as AxelarSourceChainConfigs } from '../integrations/axelar/chainTokenConfigs';
+import { SourceChainTokenConfigs as AxelarSourceChainConfigs } from '../../integrations/axelar/chainTokenConfigs';
 const IS_TESTNET = false;
 export interface IBCAsset {
   counterpartyChainId: string;
@@ -41,6 +39,10 @@ export const IBCAssetInfos: (IBCAsset & {
    *  voted on its incentivization or general approval (amongst other possibilities).
    */
   isVerified?: boolean;
+
+  originBridgeInfo?: any;
+
+  fiatRamps?: any;
 })[] = IS_TESTNET
   ? [
     {
@@ -1780,19 +1782,3 @@ export const IBCAssetInfos: (IBCAsset & {
 
     return true;
   });
-
-export function makeIBCMinimalDenom(
-  sourceChannelId: string,
-  coinMinimalDenom: string
-): string {
-  return (
-    "ibc/" +
-    Buffer.from(
-        sha256(
-          Buffer.from(`transfer/${sourceChannelId}/${coinMinimalDenom}`)
-        )
-      )
-      .toString("hex")
-      .toUpperCase()
-  );
-}

@@ -12,11 +12,11 @@ const {
   OSMOSIS_RPC_OVERWRITE,
 } = {
   IS_TESTNET: false,
-  OSMOSIS_CHAIN_ID_OVERWRITE: false,
-  OSMOSIS_CHAIN_NAME_OVERWRITE: false,
-  OSMOSIS_EXPLORER_URL_OVERWRITE: false,
-  OSMOSIS_REST_OVERWRITE: false,
-  OSMOSIS_RPC_OVERWRITE: false,
+  OSMOSIS_CHAIN_ID_OVERWRITE: null,
+  OSMOSIS_CHAIN_NAME_OVERWRITE: null,
+  OSMOSIS_EXPLORER_URL_OVERWRITE: null,
+  OSMOSIS_REST_OVERWRITE: null,
+  OSMOSIS_RPC_OVERWRITE: null,
 };
 
 /** All currency attributes (stake and fee) are defined once in the `currencies` list.

@@ -1,5 +1,6 @@
 import moment from 'moment-timezone';
 import _ from 'lodash';
+
 function getTS() {
   return moment().tz('Europe/Sofia').format('DD-MM-YY HH:mm:ss');
 }
@@ -7,11 +8,20 @@ function getTS() {
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 export class Logger {
   private readonly label: string;
+  private readonly errors = {};
+
+  public debugOnce(msg: string, ...args) {
+    if (!this.errors[msg]) {
+      this.debug(msg, ...args);
+      this.errors[msg] = true;
+    }
+  }
+
   private parseError = (errOrAny) => {
     return errOrAny?.toJSON ? _.pick(errOrAny.toJSON(), ['message', 'stack', 'config.url', 'config.data'])
-      : errOrAny?.message ? _.pick(errOrAny, ['message','stack'])
+      : errOrAny?.message ? _.pick(errOrAny, ['message', 'stack'])
         : errOrAny;
-  }
+  };
 
   constructor(label: string) {
     this.label = `[${label}]`;
@@ -51,5 +61,9 @@ export class Logger {
 
   timeEnd(label, ...args) {
     console.timeLog.apply(console, [label, getTS(), this.label, ...args]);
+  }
+
+  debug(...args) {
+    console.debug.apply(console, [getTS(), this.label, ...args]);
   }
 }

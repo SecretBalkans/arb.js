@@ -16,7 +16,8 @@
     ]
   },
   "include": [
-    "src"
+    "src",
+    "src/ts/ts.d.ts"
   ],
   "exclude": [
     "build",

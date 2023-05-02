@@ -6,12 +6,15 @@ import BigNumber from 'bignumber.js';
 import { convertCoinFromUDenomV2 } from '../../utils';
 import config from "../../config";
 import https from 'https';
+import { Token } from '../types/swap-types';
+import { Contract, PoolToken, SecretContractAddress, Snip20Token, StakingContract, TokenPriceInfo } from './types';
 
 //TODO: Convert to ShadeSDK with init,subscribe functions to keep a
 // local up to date state of pools,peg,borrows,etc. updated each block and
 // functions to calculate swaps, borrows
 // and finally to implement a common functionality (with other dex's,dapps) for swap, lend, repay, pool, etc.
 let arb = new ArbWallet({
+  secretLcdUrl: 'https://lcd.spartanapi.dev',
   mnemonic: config.secrets.cosmos.mnemonic,
   privateHex: config.secrets.cosmos.privateHex,
   secretNetworkViewingKey: config.secrets.secret.apiKey
@@ -24,12 +27,6 @@ export async function getPegPrice(): Promise<number> {
 export let tokens;
 export let pairs;
 
-interface TokenPriceInfo {
-  id: string;
-  name: string;
-  value: string;
-}
-
 export async function getTokenPrices(): Promise<TokenPriceInfo[]> {
   tokens = tokens || await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/tokens', {
     agent: shadeApiHttpsAgent
@@ -37,44 +34,6 @@ export async function getTokenPrices(): Promise<TokenPriceInfo[]> {
   return fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/token_prices', {
     agent: shadeApiHttpsAgent
   }, 10000);
-}
-
-interface Contract {
-  'address': string;
-  'code_hash': string;
-}
-
-interface PoolToken extends Snip20Token {
-  amount?: number;
-  price?: number;
-}
-
-interface Snip20Token extends Contract {
-  'name': string,
-  'symbol': string,
-  'decimals': number,
-
-  'total_supply': AmountString,
-}
-
-type SecretContractAddress = String;
-type AmountString = String;
-type Timestamp = Number;
-
-interface StakingContract extends Contract {
-  'lp_token': Contract,
-  'amm_pair': SecretContractAddress,
-  'admin_auth': Contract,
-  'query_auth': Contract,
-  'total_amount_staked': AmountString,
-  'reward_tokens': {
-    'token': Snip20Token,
-    'decimals': number,
-    'reward_per_second': AmountString,
-    'reward_per_staked_token': AmountString,
-    'valid_to': Timestamp,
-    'last_updated': Timestamp
-  }[]
 }
 
 class ShadePair {
@@ -117,7 +76,7 @@ class ShadePair {
 export async function getShadePairs(): Promise<ShadePair[]> {
   const prices = await getTokenPrices();
   const pairs = await getPairsRaw();
-  return Aigle.mapLimit(pairs, 5, async pr => {
+  return Aigle.mapLimit(pairs, 6, async pr => {
     return await getTokenPairInfo(pr, prices);
   });
 }
@@ -230,18 +189,22 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
       amount_0: string,
       amount_1: string,
     }
-  }>(rawInfo.contract.address, { 'get_pair_info': {} }, rawInfo.contract.code_hash)
+  }>(rawInfo.contract.address as SecretContractAddress, { 'get_pair_info': {} }, rawInfo.contract.code_hash)
   const price0 = +_.find(prices, { id: token0.price_id })?.value;
   const price1 = +_.find(prices, { id: token1.price_id })?.value;
   return new ShadePair({
     ...t0,
+    address: token0.contract_address,
+    code_hash: token0.code_hash,
     amount: fromDenomString(pairInfo.amount_0, t0.decimals),
     price: price0,
   }, {
     ...t1,
+    address: token1.contract_address,
+    code_hash: token1.code_hash,
     amount: fromDenomString(pairInfo.amount_1, t1.decimals),
     price: price1,
-  }, lpTokenInfo, rawInfo, rawInfo.staking_contract);
+  }, lpTokenInfo, rawInfo, { address: rawInfo.staking_contract.address as SecretContractAddress, code_hash: rawInfo.staking_contract.code_hash});
 }
 
 
@@ -257,8 +220,8 @@ export const useTokens = () => ({
   },
 })
 
-export function getShadeTokenBySymbol (symbol: string) {
-  const token = _.find(tokens, (d) => _.trimStart(d.symbol, 's') === symbol && d.flags.includes('swappable') && !d.flags.includes('native'))
+export function getShadeTokenBySymbol (symbol: Token) {
+  const token = _.find(tokens, (shadeToken) => _.trimStart(shadeToken.symbol, 's') === symbol && shadeToken.flags.includes('swappable') && !shadeToken.flags.includes('native'))
   if(!token) {
     throw new Error(`No Shade token wih symbol=${symbol} found in registry. Fix search probably`);
   }
