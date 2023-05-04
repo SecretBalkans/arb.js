@@ -16,7 +16,8 @@ export type ArbWalletConfig = { mnemonic?: string, privateHex?: string, secretNe
 
 export enum ArbChain {
   SECRET,
-  OSMO
+  OSMO,
+  SECRET_TESTNET
 }
 
 export type ArbChainConfig = {
@@ -52,6 +53,12 @@ export class ArbWallet {
         bech32Prefix: 'osmo',
         chainId: 'osmosis-1',
         name: 'Osmosis',
+      },
+      [ArbChain.SECRET_TESTNET]: {
+        bech32Prefix: 'secret',
+        coinType: 529,
+        chainId: 'pulsar-2',
+        name: 'Secret Testnet',
       },
     }[chain];
   }
@@ -134,6 +141,7 @@ export class ArbWallet {
     if (!this.secretClient) {
       const senderAddress = await this.getAddress(chain);
       const signer = await this.getSecretSigner();
+      const getSecretPen = this.getSecretPen.bind(this);
       this.secretClient = new SecretNetworkClient({
         url: url,
         wallet: {
@@ -178,7 +186,7 @@ export class ArbWallet {
               {
                 address: senderAddress,
                 algo: 'secp256k1',
-                pubkey: (await this.getSecretPen()).pubkey,
+                pubkey: (await getSecretPen()).pubkey,
               },
             ];
           },
@@ -260,7 +268,7 @@ export class ArbWallet {
    * @param gasPrice
    * @param gasLimit
    */
-  public async executeSecretContract(contractAddress: string, msg: any, gasPrice = 0.001, gasLimit = 113000) {
+  public async executeSecretContract(contractAddress: string, msg: any, gasPrice = 0.015, gasLimit = 1700000) {
     const client = await this.getSecretNetworkClient();
     if (!this.CODE_HASH_CACHE[contractAddress]) {
       this.CODE_HASH_CACHE[contractAddress] = (await client.query.compute.codeHashByContractAddress({

@@ -1,42 +1,58 @@
-import { Wallet, SecretNetworkClient } from "secretjs"
+import { toBase64 } from "secretjsbeta"
+import { ArbWallet } from "../../wallet/ArbWallet"
+import config from "../../config"
+
 
 async function main(){
-
-    // Secret.js Client
-    let secretjs: SecretNetworkClient
-    
-    const wallet = new Wallet(
-      "grant rice replace explain federal release fix clever romance raise often wild taxi quarter soccer fiber love must tape steak together observe swap guitar"
-    )
-    
     // Get environment variables from .env
-    const secretChainUrl = "https://rpc.pulsar.scrttestnet.com/"
-    const routerCode = "" 
-    const routerHash = ""
-    const routerAddress = "" 
+    const secretChainUrl = "https://lcd.spartanapi.dev"
+    const routerHash = "448e3f6d801e453e838b7a5fbaa4dd93b84d0f1011245f0d5745366dadaf3e85"
+    const routerAddress = "secret1pjhdug87nxzv0esxasmeyfsucaj98pw4334wyc"
     
-    secretjs = await new SecretNetworkClient({
-        url: secretChainUrl,
-        chainId: "pulsar-2",
-        wallet: wallet,
-        walletAddress: wallet.address,
-    })
+    const SCRT_address = "secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek"
+    const SCRT_hash = "af74387e276be8874f07bec3a87023ee49b0e7ebe08178c49d0a49c3c98ed60e"
+    
+    const sScrt_stkdScrt_LP_address = "secret1y6w45fwg9ln9pxd6qys8ltjlntu9xa4f2de7sp"
+    const sScrt_stkdScrt_LP_hash = "e88165353d5d7e7847f2c84134c3f7871b2eee684ffac9fcf8d99a4da39dc2f2"
+    
+    let arb = new ArbWallet({
+        secretLcdUrl: secretChainUrl,
+        mnemonic: config.secrets.cosmos.mnemonic,
+        privateHex: "",
+        secretNetworkViewingKey: "",
+    });
+
+    const raw_msg = JSON.stringify(
+        {
+            swap_tokens_for_exact:{
+                expected_return: "767",
+                path:[
+                {
+                    addr: sScrt_stkdScrt_LP_address,
+                    code_hash: sScrt_stkdScrt_LP_hash
+                }]
+            }
+        }
+    )
 
     const swap = async () => {
-        const tx = await secretjs.tx.compute.executeContract(
+        const tx = await arb.executeSecretContract(
+            SCRT_address,
             {
-                sender: wallet.address,
-                contract_address: routerAddress,
-                code_hash: routerHash,
-                msg: {
-                  increment: {},
-                },
-              },
-              {
-                gasLimit: 1_000_000,
-              }
+                send: {
+                    "recipient": routerAddress,
+                    "recipient_code_hash": routerHash,
+                    "amount": "1000",
+                    "msg": toBase64(Buffer.from(raw_msg, 'ascii')),
+                    "padding": "aivh5h3nUtAm"
+                }
+            },
+            
         )
+        console.log("Transaction output: ", tx)
     }
+
+    await swap()
 }
 
 main().catch((e) => {
