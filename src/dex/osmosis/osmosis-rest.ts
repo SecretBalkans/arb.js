@@ -16,7 +16,9 @@ export async function getOsmoPools (): Promise<Pool[]> {
       'accept': 'application/json, text/plain, */*',
     }
   });
-  allPools = osmoReq.pools.filter(poolRaw => !poolRaw.pool_assets?.some(p => p.token?.denom?.startsWith('gamm'))).map((poolRaw: any) => {
+  allPools = osmoReq.pools
+    .filter(poolRaw => !poolRaw.pool_assets?.some(p => p.token?.denom?.startsWith('gamm')))
+    .map((poolRaw: any) => {
     if (poolRaw["@type"] === "/osmosis.gamm.poolmodels.stableswap.v1beta1.Pool") {
       return new StablePool(poolRaw);
     } else {

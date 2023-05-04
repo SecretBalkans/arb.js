@@ -1,11 +1,13 @@
 import ShadeSwap from './dex/shade';
 import OsmosisSwap from './dex/osmosis';
-import { DexStore } from './arbitrage/dexArbitrage';
+import { ArbitrageMonitor, DexStore } from './arbitrage/dexArbitrage';
+import { SwapToken } from './dex/types/swap-types';
 
 (async () => {
   const dexStore = new DexStore([
     new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
-    new ShadeSwap('https://rpc-secret.whispernode.com:443')]);
+    new ShadeSwap('https://rpc-secret.whispernode.com:443')]
+  );
   /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
     next(d) {
       console.log(`${d[0].height}/${d[0].pools.length}, ${d[1].height}/${d[1].pools.length}`);
@@ -14,11 +16,14 @@ import { DexStore } from './arbitrage/dexArbitrage';
       console.error(err);
     },
   });*/
-  const arbSub = dexStore.subscribeDexArbitrage().subscribe({
-    next(arbs) {
-      arbs.forEach(arb => arb.print())
-    }
-  })
+  const arbitrage = new ArbitrageMonitor(dexStore, [
+    [SwapToken.SCRT, SwapToken.USDC]
+  ]);
+  const arbSub = arbitrage.subscribeArbs().subscribe({
+    next(arb) {
+      console.log(arb);
+    },
+  });
   /*
   while (true) {
     console.time('cycle');

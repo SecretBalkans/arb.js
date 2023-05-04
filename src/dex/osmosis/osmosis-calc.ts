@@ -1,5 +1,4 @@
 import { OptimizedRoutes } from '@osmosis-labs/pools';
-import { allPools } from './osmosis-rest';
 import BigNumber from 'bignumber.js';
 import { Int } from '@keplr-wallet/unit';
 
@@ -11,8 +10,8 @@ export function calculateBestOsmosisSwapRoute({
   tokenInDenom: string,
   tokenInAmount: BigNumber,
   tokenOutDenom: string
-}) {
-  const router = new OptimizedRoutes(allPools, ['1', '2'], 'uosmo');
+}, pools) {
+  const router = new OptimizedRoutes(pools, ['1', '2'], 'uosmo');
 
   const int = tokenInAmount.toString();
   const routes =router.getOptimizedRoutesByTokenIn(

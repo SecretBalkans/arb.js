@@ -10,7 +10,12 @@ export type NonArbedToken = Brand<string, 'NonArbedToken'>
 export type NoIBCToken = Brand<string, 'NoIBCToken'>
 export type PoolToken = Token | NonArbedToken | NoIBCToken;
 export type PoolId = Brand<string, "PoolId">
-export enum SwapTokens {
+
+export function reversePair<T extends SwapToken | PoolToken>(pair: [T,T]): [T,T] {
+  return [pair[1],pair[0]];
+}
+
+export enum SwapToken {
   SHD = 'SHD',
   'USDC' = 'USDC',
   'USDT' = 'USDT',
@@ -29,27 +34,28 @@ export enum SwapTokens {
   BLD = "BLD",
   SIENNA = "SIENNA"
 }
+
 function isArbedToken(token: Token | NonArbedToken): token is Token {
   return !!SwapTokenMap[token as Token];
 }
-export const SwapTokenMap: Record<SwapTokens, Token> = {
-  SHD: SwapTokens.SHD as Token,
-  SILK: SwapTokens.SILK as Token,
-  CMST: SwapTokens.CMST as Token,
-  stkdSCRT: SwapTokens.stkdSCRT as Token,
-  SCRT: SwapTokens.SCRT as Token,
-  stATOM: SwapTokens.stATOM as Token,
-  IST: SwapTokens.IST as Token,
-  ATOM: SwapTokens.ATOM as Token,
-  stOSMO: SwapTokens.stOSMO as Token,
-  USDT: SwapTokens.USDT as Token,
-  USDC: SwapTokens.USDC as Token,
-  OSMO: SwapTokens.OSMO as Token,
-  JUNO: SwapTokens.JUNO as Token,
-  stJUNO: SwapTokens.stJUNO as Token,
-  SIENNA: SwapTokens.SIENNA as Token,
-  JKL: SwapTokens.JKL as Token,
-  BLD: SwapTokens.BLD as Token
+export const SwapTokenMap: Record<SwapToken, Token> = {
+  SHD: SwapToken.SHD as Token,
+  SILK: SwapToken.SILK as Token,
+  CMST: SwapToken.CMST as Token,
+  stkdSCRT: SwapToken.stkdSCRT as Token,
+  SCRT: SwapToken.SCRT as Token,
+  stATOM: SwapToken.stATOM as Token,
+  IST: SwapToken.IST as Token,
+  ATOM: SwapToken.ATOM as Token,
+  stOSMO: SwapToken.stOSMO as Token,
+  USDT: SwapToken.USDT as Token,
+  USDC: SwapToken.USDC as Token,
+  OSMO: SwapToken.OSMO as Token,
+  JUNO: SwapToken.JUNO as Token,
+  stJUNO: SwapToken.stJUNO as Token,
+  SIENNA: SwapToken.SIENNA as Token,
+  JKL: SwapToken.JKL as Token,
+  BLD: SwapToken.BLD as Token
 }
 export interface IPool {
   poolId: PoolId;
@@ -57,10 +63,10 @@ export interface IPool {
   token1Amount: Amount;
   token0Id: PoolToken;
   token1Id: PoolToken;
-  dex: DexProtocol
+  dex: DexProtocolName
 }
 
-export type DexProtocol = 'osmosis' | 'shade';
+export type DexProtocolName = 'osmosis' | 'shade';
 
 export interface IRouteSegment {
   poolId: string;
@@ -77,12 +83,30 @@ export interface ICalculatedRouteSegment extends IRouteSegment {
 
 export type IRoute = IRouteSegment[];
 
+export abstract class DexProtocol implements ICanSwap, ILivePoolStore{
+  name: DexProtocolName;
+  pools: IPool[];
+
+  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IPool[]): { route: IRoute; amountOut: Amount } {
+    throw new Error('Implement me');
+  }
+
+  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token]): { route: IRoute; amountOut: Amount } {
+    return this.calcSwapWithPools(amountIn, tokenInId, tokenOutId, this.pools);
+  }
+
+  subscribeToPoolsUpdate(): Observable<{ pools: IPool[]; height: number }> {
+    throw new Error('Implement me');
+  }
+
+}
 
 export interface ICanSwap {
-  calculateSwapRoutesWithManyPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IPool[]): { route: IRoute, amountOut: Amount};
+  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IPool[]): { route: IRoute, amountOut: Amount};
 }
 
 export interface ILivePoolStore {
-  name: DexProtocol,
+  name: DexProtocolName,
+  pools: IPool[],
   subscribeToPoolsUpdate (): Observable<{ pools: IPool[], height: number}>;
 }

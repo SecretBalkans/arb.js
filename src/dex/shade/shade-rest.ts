@@ -220,14 +220,6 @@ export const useTokens = () => ({
   },
 })
 
-export function getShadeTokenBySymbol (symbol: Token) {
-  const token = _.find(tokens, (shadeToken) => _.trimStart(shadeToken.symbol, 's') === symbol && shadeToken.flags.includes('swappable') && !shadeToken.flags.includes('native'))
-  if(!token) {
-    throw new Error(`No Shade token wih symbol=${symbol} found in registry. Fix search probably`);
-  }
-  return token;
-}
-
 export function parsePoolsRaw(e: TokenPairInfoRaw[]): { [p: string]: { stakingContract: any; fees: any; token0Id: any; contract: any; token1Id: any; flags: any; token0Amount: BigNumber; rewardTokens: any; stableParams: any; id: any; lpTokenId: any; metrics: { volume: any; liquidity: BigNumber; currency: any; apy: any }; token1Amount: BigNumber } } {
   return e.reduce((t, n) => {
       const o = n.volume ? {

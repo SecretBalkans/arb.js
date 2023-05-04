@@ -1,20 +1,32 @@
-import { Amount, DexProtocol, ICanSwap, ILivePoolStore, IPool, IRoute, PoolId, Token } from '../types/swap-types';
+import {
+  Amount,
+  DexProtocol,
+  DexProtocolName,
+  ICanSwap,
+  ILivePoolStore,
+  IPool,
+  IRoute,
+  PoolId,
+  Token,
+} from '../types/swap-types';
 import { calculateBestShadeSwapRoutes } from './shade-calc';
 import BigNumber from 'bignumber.js';
-import { getShadePairs, getShadeTokenBySymbol } from './shade-rest';
+import { getShadePairs } from './shade-rest';
 import { convertCoinFromUDenomV2 } from '../../utils';
 import { Observable } from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
-import { toTokenId } from './tokens';
+import { toTokenId, getShadeTokenBySymbol } from './tokens';
 
 export * from './shade-calc'
 export * from './shade-rest'
 
-export default class ShadeSwap implements ICanSwap, ILivePoolStore {
-  public name = 'shade' as DexProtocol
+export default class ShadeSwap extends DexProtocol {
+  public name = 'shade' as DexProtocolName
+  public pools: IPool[];
   constructor(public readonly rpcEndpoint: string) {
+    super();
   }
-  calculateSwapRoutesWithManyPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IPool[]): { route: IRoute; amountOut: Amount } {
+  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IPool[]): { route: IRoute; amountOut: Amount } {
     const startingToken = getShadeTokenBySymbol(tokenInId);
     const endingToken = getShadeTokenBySymbol(tokenOutId);
     const [route] = calculateBestShadeSwapRoutes({
@@ -32,20 +44,24 @@ export default class ShadeSwap implements ICanSwap, ILivePoolStore {
     }
   }
 
-  subscribeToPoolsUpdate(retryTime = 300): Observable<{ pools: IPool[]; height: number }> {
+  public override subscribeToPoolsUpdate(retryTime = 300): Observable<{ pools: IPool[]; height: number }> {
     return new Observable<{ pools: IPool[], height: number }>(observer => {
       createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => getShadePairs()
-        .then(shadePairs => observer.next({
-          pools: shadePairs.map(sp => ({
+        .then(shadePairs => {
+          const latestPools = shadePairs.map(sp => ({
             poolId: sp.name as PoolId,
-            dex: 'shade',
+            dex: 'shade' as DexProtocolName,
             token0Id: toTokenId(sp.token0),
             token0Amount: BigNumber(sp.token0.amount),
             token1Id: toTokenId(sp.token1),
             token1Amount: BigNumber(sp.token1.amount),
-          })), height: blockHeight,
-        })).catch(console.error), console.error);
+          }));
+          this.pools = latestPools;
+          return observer.next({
+            pools: latestPools,
+            height: blockHeight,
+          });
+        }).catch(console.error), console.error);
     });
   }
-
 }
