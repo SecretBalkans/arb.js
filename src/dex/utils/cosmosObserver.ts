@@ -21,6 +21,6 @@ export default function cosmosObserver(rpcEndpoint: string, retryTime = 300): Ob
         } while (true);
         observer.next(prevHeight);
       } while (true);
-    })().catch(observer.error);
+    })().catch(observer.error.bind(observer));
   });
 }

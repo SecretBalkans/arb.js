@@ -1,0 +1,13 @@
+.DS_Store
+.idea
+.vscode
+node_modules
+dist
+prod
+build
+yarn-error.log
+.yarn
+
+src/styles/index.scss
+.vercel
+.turbo

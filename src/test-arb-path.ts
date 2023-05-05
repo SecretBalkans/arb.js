@@ -1,12 +1,15 @@
-import ShadeSwap from './dex/shade';
-import OsmosisSwap from './dex/osmosis';
 import { ArbitrageMonitor, DexStore } from './arbitrage/dexArbitrage';
 import { SwapToken } from './dex/types/swap-types';
-
+import OsmosisSwap from './dex/osmosis/osmosisSwap';
+import ShadeSwap from './dex/shade/shadeSwap';
+import _ from 'lodash';
+import { Logger } from './utils';
+const logger = new Logger('ArbM');
 (async () => {
   const dexStore = new DexStore([
     new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
-    new ShadeSwap('https://rpc-secret.whispernode.com:443')]
+    new ShadeSwap('https://rpc-secret.whispernode.com:443')
+    ]
   );
   /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
     next(d) {
@@ -17,11 +20,21 @@ import { SwapToken } from './dex/types/swap-types';
     },
   });*/
   const arbitrage = new ArbitrageMonitor(dexStore, [
-    [SwapToken.SCRT, SwapToken.USDC]
+    [SwapToken.SCRT, SwapToken.USDC],
+    [SwapToken.CMST, SwapToken.IST],
+    [SwapToken.BLD, SwapToken.USDC],
+    [SwapToken.USDT, SwapToken.USDC],
+    [SwapToken.ATOM, SwapToken.USDC],
+    [SwapToken.OSMO, SwapToken.USDC],
+    [SwapToken.stATOM, SwapToken.ATOM],
+    [SwapToken.stOSMO, SwapToken.OSMO],
+    [SwapToken.stJUNO, SwapToken.JUNO],
+    [SwapToken.stINJ, SwapToken.INJ],
   ]);
-  const arbSub = arbitrage.subscribeArbs().subscribe({
-    next(arb) {
-      console.log(arb);
+
+  arbitrage.subscribeArbs().subscribe({
+    next(arbPaths) {
+      logger.log(_.sortBy(arbPaths, 'winPercentage').reverse().map(ap=> ap?.toString()));
     },
   });
   /*

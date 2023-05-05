@@ -2,12 +2,12 @@ import { fetchTimeout } from '../../utils';
 import _ from 'lodash';
 import Aigle from 'aigle';
 import { ArbWallet } from '../../wallet/ArbWallet';
-import BigNumber from 'bignumber.js';
 import { convertCoinFromUDenomV2 } from '../../utils';
 import config from "../../config";
 import https from 'https';
-import { Token } from '../types/swap-types';
 import { Contract, PoolToken, SecretContractAddress, Snip20Token, StakingContract, TokenPriceInfo } from './types';
+import { Amount } from '../types/swap-types';
+import BigNumber from 'bignumber.js';
 
 //TODO: Convert to ShadeSDK with init,subscribe functions to keep a
 // local up to date state of pools,peg,borrows,etc. updated each block and
@@ -36,7 +36,7 @@ export async function getTokenPrices(): Promise<TokenPriceInfo[]> {
   }, 10000);
 }
 
-class ShadePair {
+export class ShadePair {
   public readonly name: string;
 
   constructor(
@@ -285,7 +285,7 @@ export function parsePoolsRaw(e: TokenPairInfoRaw[]): { [p: string]: { stakingCo
     }, {});
 }
 
-function parseRawPool(e): { stakingContract: any; fees: any; token0Id: any; contract: any; token1Id: any; flags: any; token0Amount: BigNumber; rewardTokens: any; stableParams: any; id: any; lpTokenId: any; metrics: { volume: any; liquidity: BigNumber; currency: any; apy: any }; token1Amount: BigNumber } {
+function parseRawPool(e): { stakingContract: any; fees: any; token0Id: any; contract: any; token1Id: any; flags: any; token0Amount: Amount; rewardTokens: any; stableParams: any; id: any; lpTokenId: any; metrics: { volume: any; liquidity: Amount; currency: any; apy: any }; token1Amount: Amount } {
   const t = useTokens()
     , {getTokenDecimals: getTokenDecimals} = t
     , {id: o, contract: u, stakingContract: l, rewardTokens: k, lpTokenId: O, token0Id: v, token0AmountRaw: _, token1Id: d, token1AmountRaw: g, fees: m, stableParams: y, flags: b, metrics: C} = e
@@ -315,7 +315,7 @@ function parseRawPool(e): { stakingContract: any; fees: any; token0Id: any; cont
   }
 }
 
-function parsePool$1(e: TokenPairInfoRaw) {
+export function parsePool$1(e: TokenPairInfoRaw) {
   const t = e.volume ? {
     volume: e.volume.volume,
     volume24HourChange: e.volume.volume_24h_change,

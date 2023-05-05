@@ -6,7 +6,8 @@
     "build:prod": "npm run build;",
     "build:base": "rm -rf ./build; tsc -p tsconfig.json; cp ./package.json ./build",
     "test": "ts-node src/test.ts",
-    "test-arb-path": "ts-node src/test-arb-path.ts"
+    "test-arb-path": "ts-node src/test-arb-path.ts",
+    "testRouter": "ts-node src/testRouter.ts"
   },
   "dependencies": {
     "@cosmjs/crypto": "^0.30.1",
@@ -15,7 +16,6 @@
     "@cosmjs/proto-signing": "^0.30.1",
     "@keplr-wallet/unit": "^0.10.24",
     "@osmosis-labs/math": "^4.0.0",
-    "@osmosis-labs/pools": "^4.0.0",
     "@osmosis-labs/stores": "^4.0.0",
     "@types/lodash": "^4.14.194",
     "aigle": "^1.14.1",

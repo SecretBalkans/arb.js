@@ -2,8 +2,13 @@ import { getPegPrice, getShadePairs, tokens } from './dex/shade';
 import _ from 'lodash';
 import { calculateBestShadeSwapRoutes, printShadeSwapRoute } from './dex/shade';
 import BigNumber from 'bignumber.js';
+import { toBase64 } from '@cosmjs/encoding';
+import { PoolId } from './dex/types/swap-types';
 
 (async () => {
+  console.log(toBase64(Buffer.from('string', 'ascii')))
+
+  // noinspection InfiniteLoopJS
   while (true) {
     console.time('cycle');
     // Always called to initialize the Shade protocol local store
@@ -19,6 +24,7 @@ import BigNumber from 'bignumber.js';
       endingTokenId: endingTokenId,
       isReverse: false,
       maxHops: 6,
+      pools: pairs.map(d => d.rawInfo.id as PoolId)
     })
     .map(printShadeSwapRoute); // we print the calculated routes
 

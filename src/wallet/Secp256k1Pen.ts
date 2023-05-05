@@ -1,7 +1,6 @@
 import {encodeSecp256k1Signature, StdSignature} from "@cosmjs/launchpad";
 
 
-import * as secp256k1 from "@noble/secp256k1";
 import { Bip39, EnglishMnemonic, Secp256k1, Sha256, Sha512, Slip10, Slip10Curve, Slip10RawIndex } from '@cosmjs/crypto';
 
 export type PrehashType = "sha256" | "sha512" | null;

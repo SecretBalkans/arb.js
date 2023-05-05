@@ -3,11 +3,18 @@
 import BigNumber from 'bignumber.js';
 import { Buffer } from 'buffer';
 import { sha256 } from '@cosmjs/crypto';
+import bigInteger from 'big-integer';
+import { Amount } from '../dex/types/swap-types';
 
-export const convertCoinToUDenomV2 = (input: string | number | BigNumber, denom: number) => typeof input == 'string' || typeof input == 'number' ? BigNumber(input).multipliedBy(BigNumber(10).pow(denom)).toFixed(0) : input.multipliedBy(BigNumber(10).pow(denom)).toFixed(0);
-export const convertCoinFromUDenomV2 = (input: string | BigNumber,denom:number)=>(BigNumber.config({
+export const convertCoinToUDenomV2 = (input: string | number | bigInteger.BigInteger | BigNumber, denom: number): bigInteger.BigNumber => {
+  return bigInteger((typeof input == 'string' || typeof input == 'number' ?
+    BigNumber(input)
+      .multipliedBy(BigNumber(10).pow(denom)).toFixed(0) :
+    BigNumber(input.toString()).multipliedBy(BigNumber(10).pow(denom)).toFixed(0)).toString());
+};
+export const convertCoinFromUDenomV2 = (input: string | bigInteger.BigInteger | BigNumber,denom:number): Amount =>(BigNumber.config({
   DECIMAL_PLACES: 18
-}),BigNumber(input).dividedBy(BigNumber(10).pow(denom)))
+}),BigNumber(input.toString()).dividedBy(BigNumber(10).pow(denom)))
 
 export function makeIBCMinimalDenom(
   sourceChannelId: string,

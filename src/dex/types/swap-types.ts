@@ -1,43 +1,51 @@
-import BigNumber from "bignumber.js";
 import { Observable } from 'rxjs';
-import { Brand } from "../../ts";
+import { Brand } from '../../ts';
+import { Pool } from '../../lib/@osmosis/packages/pools/src';
+import { ShadePair } from '../shade';
+import bigInteger from 'big-integer';
+import BigNumber from 'bignumber.js';
 
 export type Amount = BigNumber;
+export type CoinAmount = bigInteger.BigInteger;
 
-export type Token = Brand<string, "Token">;
-export type Denom = Brand<string, "Denom">;
+export type Token = Brand<string, 'Token'>;
+export type Denom = Brand<string, 'Denom'>;
 export type NonArbedToken = Brand<string, 'NonArbedToken'>
 export type NoIBCToken = Brand<string, 'NoIBCToken'>
 export type PoolToken = Token | NonArbedToken | NoIBCToken;
-export type PoolId = Brand<string, "PoolId">
+export type PoolId = Brand<string, 'PoolId'>
 
-export function reversePair<T extends SwapToken | PoolToken>(pair: [T,T]): [T,T] {
-  return [pair[1],pair[0]];
+export function reversePair<T extends SwapToken | PoolToken>(pair: [T, T]): [T, T] {
+  return [pair[1], pair[0]];
 }
 
 export enum SwapToken {
   SHD = 'SHD',
   'USDC' = 'USDC',
   'USDT' = 'USDT',
-  CMST = "CMST",
-  SILK = "SILK",
-  stkdSCRT = "stkdSCRT",
-  SCRT = "SCRT",
-  stATOM = "stATOM",
-  IST = "IST",
-  ATOM = "ATOM",
-  stOSMO = "stOSMO",
-  OSMO = "OSMO",
-  JUNO = "JUNO",
-  stJUNO = "stJUNO",
-  JKL = "JKL",
-  BLD = "BLD",
-  SIENNA = "SIENNA"
+  CMST = 'CMST',
+  SILK = 'SILK',
+  stkdSCRT = 'stkdSCRT',
+  SCRT = 'SCRT',
+  stATOM = 'stATOM',
+  IST = 'IST',
+  ATOM = 'ATOM',
+  stOSMO = 'stOSMO',
+  stINJ = 'stINJ',
+  INJ = 'INJ',
+  OSMO = 'OSMO',
+  JUNO = 'JUNO',
+  stJUNO = 'stJUNO',
+  JKL = 'JKL',
+  BLD = 'BLD',
+  SIENNA = 'SIENNA'
 }
 
+// noinspection JSUnusedLocalSymbols
 function isArbedToken(token: Token | NonArbedToken): token is Token {
   return !!SwapTokenMap[token as Token];
 }
+
 export const SwapTokenMap: Record<SwapToken, Token> = {
   SHD: SwapToken.SHD as Token,
   SILK: SwapToken.SILK as Token,
@@ -55,24 +63,29 @@ export const SwapTokenMap: Record<SwapToken, Token> = {
   stJUNO: SwapToken.stJUNO as Token,
   SIENNA: SwapToken.SIENNA as Token,
   JKL: SwapToken.JKL as Token,
-  BLD: SwapToken.BLD as Token
-}
-export interface IPool {
+  BLD: SwapToken.BLD as Token,
+  INJ: SwapToken.INJ as Token,
+  stINJ: SwapToken.stINJ as Token,
+};
+
+export interface IPool<T> {
   poolId: PoolId;
-  token0Amount: Amount;
-  token1Amount: Amount;
+  token0Amount: CoinAmount;
+  token1Amount: CoinAmount;
   token0Id: PoolToken;
   token1Id: PoolToken;
-  dex: DexProtocolName
+  dex: DexProtocolName;
+
+  internalPool: T;
 }
 
 export type DexProtocolName = 'osmosis' | 'shade';
 
-export interface IRouteSegment {
-  poolId: string;
+export interface IRouteSegment<T extends DexPool> {
+  pool: T;
 }
 
-export interface ICalculatedRouteSegment extends IRouteSegment {
+export interface ICalculatedRouteSegment<T extends DexPool> extends IRouteSegment<T> {
   inputTokenId: Token;
   outputTokenId: Token;
   amountIn: Amount;
@@ -81,32 +94,48 @@ export interface ICalculatedRouteSegment extends IRouteSegment {
   priceImpact: Amount;
 }
 
-export type IRoute = IRouteSegment[];
+export type IRoute<T extends DexPool> = IRouteSegment<T>[];
+export type DexPool = Pool | ShadePair;
 
-export abstract class DexProtocol implements ICanSwap, ILivePoolStore{
+export abstract class DexProtocol<T extends DexPool> implements ICanSwap<T>, ILivePoolStore<T> {
   name: DexProtocolName;
-  pools: IPool[];
+  pools: IPool<T>[];
 
-  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IPool[]): { route: IRoute; amountOut: Amount } {
+  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: T[]): { route: IRoute<T>; amountOut: Amount } | null {
     throw new Error('Implement me');
   }
 
-  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token]): { route: IRoute; amountOut: Amount } {
-    return this.calcSwapWithPools(amountIn, tokenInId, tokenOutId, this.pools);
+  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools = this.pools.map(p => p.internalPool)): { route?: IRoute<T>; amountOut?: Amount, internalSwapError: Error | null } {
+    try {
+      const result = this.calcSwapWithPools(amountIn, tokenInId, tokenOutId, pools);
+      if (!result) {
+        // noinspection ExceptionCaughtLocallyJS
+        throw new Error('No swap route');
+      }
+      return {
+        internalSwapError: null,
+        ...result,
+      };
+    } catch (err) {
+      return {
+        internalSwapError: new Error(`SwapError ${amountIn?.toString()} ${tokenInId} > ${tokenOutId} : ${err.message}\n\r${err.stack}`),
+      };
+    }
   }
 
-  subscribeToPoolsUpdate(): Observable<{ pools: IPool[]; height: number }> {
+  subscribeToPoolsUpdate(): Observable<{ pools: IPool<T>[]; height: number }> {
     throw new Error('Implement me');
   }
 
 }
 
-export interface ICanSwap {
-  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IPool[]): { route: IRoute, amountOut: Amount};
+export interface ICanSwap<T extends DexPool> {
+  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: T[]): { route: IRoute<T>, amountOut: Amount };
 }
 
-export interface ILivePoolStore {
+export interface ILivePoolStore<T extends DexPool> {
   name: DexProtocolName,
-  pools: IPool[],
-  subscribeToPoolsUpdate (): Observable<{ pools: IPool[], height: number}>;
+  pools: IPool<T>[],
+
+  subscribeToPoolsUpdate(): Observable<{ pools: IPool<T>[], height: number }>;
 }

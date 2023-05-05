@@ -1,6 +1,10 @@
+// noinspection CommaExpressionJS
+
 import BigNumber from 'bignumber.js';
 import { TheStore, useTokens } from './shade-rest';
-import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../../utils/denoms';
+import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../../utils';
+import { Amount, PoolId } from '../types/swap-types';
+import _ from 'lodash';
 
 let math = BigNumber;
 
@@ -326,8 +330,8 @@ function calculatePathOutcome({
       ne.push(poolPairInfo);
       const token0Decimals = getTokenDecimals(poolPairInfo.token0Id)
         , token1Decimals = getTokenDecimals(poolPairInfo.token1Id)
-        , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(math(10).pow(token0Decimals))
-        , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(math(10).pow(token1Decimals))
+        , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(10 ** token0Decimals)
+        , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(10 ** token1Decimals)
         , outputTokenDecimals = getTokenDecimals(outputTokenId)
         , outputAmountString = quoteOutputAmount.toString()
         , inputToken0Amount = convertCoinFromUDenomV2(outputAmountString, outputTokenDecimals);
@@ -351,7 +355,7 @@ function calculatePathOutcome({
             priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
           }
             , otherTokenAmount = stableSwapToken0ToToken1InPool(stablePoolParams);
-          otherTokenDenomAmount = math(convertCoinToUDenomV2(otherTokenAmount, otherTokenDecimals)),
+          otherTokenDenomAmount = math(convertCoinToUDenomV2(otherTokenAmount, otherTokenDecimals).toString()),
             priceImpact = calculateStableSwapPriceImpactInputToken0(stablePoolParams);
         } else if (outputTokenId === poolPairInfo.token1Id && poolPairInfo.stableParams !== null) {
           const Z = {
@@ -369,7 +373,7 @@ function calculatePathOutcome({
             priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
           }
             , V = stableSwapToken1ToToken0InPool(Z);
-          otherTokenDenomAmount = math(convertCoinToUDenomV2(V, otherTokenDecimals)),
+          otherTokenDenomAmount = math(convertCoinToUDenomV2(V, otherTokenDecimals).toString()),
             priceImpact = calculateStableSwapPriceImpactInputToken1(Z);
         } else {
           throw Error('stableswap parameter error');
@@ -466,8 +470,8 @@ function calculatePathQuotaByEnding({
     numOfHops.unshift(poolPairInfo);
     const token0Decimals = getTokenDecimals(poolPairInfo.token0Id)
       , token1Decimals = getTokenDecimals(poolPairInfo.token1Id)
-      , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(math(10).pow(token0Decimals))
-      , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(math(10).pow(token1Decimals))
+      , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(10 ** token0Decimals)
+      , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(10 ** token1Decimals)
       , inputTokenDecimals = getTokenDecimals(inputTokenId)
       , inputAmount = quoteInputAmount.toString()
       , l = convertCoinFromUDenomV2(inputAmount, inputTokenDecimals);
@@ -491,7 +495,7 @@ function calculatePathQuotaByEnding({
           priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
         }
           , startingInputTokenAmount = getTradeInputOfSimulateReverseToken0WithToken1Trade(Z);
-        otherTokenAmount = math(convertCoinToUDenomV2(startingInputTokenAmount, te));
+        otherTokenAmount = math(convertCoinToUDenomV2(startingInputTokenAmount, te).toString());
         const b = {
           inputToken0Amount: startingInputTokenAmount,
           poolToken0Amount: poolPairInfo.token0Amount,
@@ -523,7 +527,7 @@ function calculatePathQuotaByEnding({
           priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
         }
           , V = getTradeInputOfSimulateReverseToken1WithToken0Trade(Z);
-        otherTokenAmount = math(convertCoinToUDenomV2(V, te));
+        otherTokenAmount = math(convertCoinToUDenomV2(V, te).toString());
         const b = {
           inputToken1Amount: V,
           poolToken0Amount: poolPairInfo.token0Amount,
@@ -625,14 +629,22 @@ export function calculateBestShadeSwapRoutes({
                                                endingTokenId: endingTokenId,
                                                maxHops: maxHops,
                                                isReverse: h = !1,
-                                             }): ShadeSwapRoute[] {
-  const theStore = TheStore()
-    , { pools: pools } = theStore
-    , rawPaths = findPaths({
+                                               pools,
+                                             }: {
+  inputTokenAmount: Amount,
+  startingTokenId: string,
+  endingTokenId: string,
+  maxHops: number,
+  pools: PoolId[],
+  isReverse: boolean,
+}): ShadeSwapRoute[] {
+  const store = TheStore();
+  const poolsMap = pools ? _.pick(store.pools, pools) : store.pools;// || (pools ? _.zipObject(_.map(pools, 'id'), pools) : store.pools);
+  const rawPaths = findPaths({
     startingTokenId: startingTokenId,
     endingTokenId: endingTokenId,
     maxHops: maxHops,
-    pools: pools,
+    pools: poolsMap,
   });
   if (rawPaths.length === 0) {
     return [];
@@ -640,20 +652,19 @@ export function calculateBestShadeSwapRoutes({
   if (!h) {
     return rawPaths
       .reduce((agg, currentPath) => {
-      try {
-        const pathCalculation = calculatePathOutcome({
-          startingTokenAmount: tokenAmount,
-          startingTokenId: startingTokenId,
-          path: currentPath,
-        });
-        return agg.push(pathCalculation),
-          agg;
-      } catch (err) {
-        console.error(err);
-        debugger;
-        return agg;
-      }
-    }, [])
+        try {
+          const pathCalculation = calculatePathOutcome({
+            startingTokenAmount: tokenAmount,
+            startingTokenId: startingTokenId,
+            path: currentPath,
+          });
+          return agg.push(pathCalculation),
+            agg;
+        } catch (err) {
+          console.error(err);
+          return agg;
+        }
+      }, [])
       .sort((d, _) => d.quoteOutputAmount.isGreaterThan(_.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(_.quoteOutputAmount) ? 1 : 0);
   } else {
     const $ = rawPaths.reduce((d, _) => {

@@ -1,6 +1,7 @@
-import { OptimizedRoutes } from '@osmosis-labs/pools';
-import BigNumber from 'bignumber.js';
 import { Int } from '@keplr-wallet/unit';
+import { OptimizedRoutes } from '../../lib/@osmosis/packages/pools/src';
+import { CoinAmount } from '../types/swap-types';
+import incentivizedPoolIds from './incentivizedPoolIds';
 
 export function calculateBestOsmosisSwapRoute({
                                                 tokenInDenom,
@@ -8,10 +9,10 @@ export function calculateBestOsmosisSwapRoute({
                                                 tokenOutDenom,
                                               }: {
   tokenInDenom: string,
-  tokenInAmount: BigNumber,
+  tokenInAmount: CoinAmount,
   tokenOutDenom: string
 }, pools) {
-  const router = new OptimizedRoutes(pools, ['1', '2'], 'uosmo');
+  const router = new OptimizedRoutes(pools, incentivizedPoolIds, 'uosmo');
 
   const int = tokenInAmount.toString();
   const routes =router.getOptimizedRoutesByTokenIn(
@@ -20,7 +21,8 @@ export function calculateBestOsmosisSwapRoute({
       amount: new Int(int),
     },
     tokenOutDenom,
-    3,
+    4,
+    3
   );
   return routes.map(r => ({
     amount: r.amount,
