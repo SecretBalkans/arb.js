@@ -101,9 +101,7 @@ export abstract class DexProtocol<T extends DexPool> implements ICanSwap<T>, ILi
   name: DexProtocolName;
   pools: IPool<T>[];
 
-  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: T[]): { route: IRoute<T>; amountOut: Amount } | null {
-    throw new Error('Implement me');
-  }
+  abstract calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: T[]): { route: IRoute<T>; amountOut: Amount } | null;
 
   calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools = this.pools.map(p => p.internalPool)): { route?: IRoute<T>; amountOut?: Amount, internalSwapError: Error | null } {
     try {
@@ -123,14 +121,15 @@ export abstract class DexProtocol<T extends DexPool> implements ICanSwap<T>, ILi
     }
   }
 
-  subscribeToPoolsUpdate(): Observable<{ pools: IPool<T>[]; height: number }> {
-    throw new Error('Implement me');
-  }
+  abstract subscribeToPoolsUpdate(): Observable<{ pools: IPool<T>[]; height: number }>
 
+  abstract getPoolsMap(pairs: [SwapToken, SwapToken][]): PoolId[];
 }
 
 export interface ICanSwap<T extends DexPool> {
   calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: T[]): { route: IRoute<T>, amountOut: Amount };
+
+  getPoolsMap(pairs: [SwapToken, SwapToken][]): PoolId[];
 }
 
 export interface ILivePoolStore<T extends DexPool> {

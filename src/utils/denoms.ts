@@ -4,7 +4,7 @@ import BigNumber from 'bignumber.js';
 import { Buffer } from 'buffer';
 import { sha256 } from '@cosmjs/crypto';
 import bigInteger from 'big-integer';
-import { Amount } from '../dex/types/swap-types';
+import { Amount } from '../dex/types/dex-types';
 
 export const convertCoinToUDenomV2 = (input: string | number | bigInteger.BigInteger | BigNumber, denom: number): bigInteger.BigNumber => {
   return bigInteger((typeof input == 'string' || typeof input == 'number' ?

@@ -1,8 +1,6 @@
 import { Int } from '@keplr-wallet/unit';
-import { OptimizedRoutes } from '../../lib/@osmosis/packages/pools/src';
-import { CoinAmount } from '../types/swap-types';
-import incentivizedPoolIds from './incentivizedPoolIds';
-let router;
+import { CoinAmount } from '../types/dex-types';
+import { router } from './osmosis-rest';
 export function calculateBestOsmosisSwapRoute({
                                                 tokenInDenom,
                                                 tokenInAmount,
@@ -11,9 +9,7 @@ export function calculateBestOsmosisSwapRoute({
   tokenInDenom: string,
   tokenInAmount: CoinAmount,
   tokenOutDenom: string
-}, pools) {
-  router = router || new OptimizedRoutes(pools, incentivizedPoolIds, 'uosmo');
-
+}) {
   const int = tokenInAmount.toString();
   const routes = router.getOptimizedRoutesByTokenIn(
     {

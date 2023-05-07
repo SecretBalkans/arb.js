@@ -3,7 +3,7 @@ import _ from 'lodash';
 import { calculateBestShadeSwapRoutes, printShadeSwapRoute } from './dex/shade';
 import BigNumber from 'bignumber.js';
 import { toBase64 } from '@cosmjs/encoding';
-import { PoolId } from './dex/types/swap-types';
+import { PoolId } from './dex/types/dex-types';
 
 (async () => {
   console.log(toBase64(Buffer.from('string', 'ascii')))

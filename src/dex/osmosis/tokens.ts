@@ -1,4 +1,4 @@
-import { Denom, NoIBCToken, NonArbedToken, SwapToken, SwapTokenMap, Token } from '../types/swap-types';
+import { Denom, NoIBCToken, NonArbedToken, SwapToken, SwapTokenMap, Token } from '../types/dex-types';
 import { Logger, makeIBCMinimalDenom } from '../../utils';
 import { ChainInfos } from './chainInfos';
 import { IBCAsset, IBCAssetInfos } from './ibcAssets';

@@ -6,7 +6,7 @@ import { convertCoinFromUDenomV2 } from '../../utils';
 import config from "../../config";
 import https from 'https';
 import { Contract, PoolToken, SecretContractAddress, Snip20Token, StakingContract, TokenPriceInfo } from './types';
-import { Amount } from '../types/swap-types';
+import { Amount } from '../types/dex-types';
 import BigNumber from 'bignumber.js';
 
 //TODO: Convert to ShadeSDK with init,subscribe functions to keep a

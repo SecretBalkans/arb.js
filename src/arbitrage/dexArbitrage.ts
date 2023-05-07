@@ -10,7 +10,7 @@ import {
   SwapToken,
   SwapTokenMap,
   Token,
-} from '../dex/types/swap-types';
+} from '../dex/types/dex-types';
 
 import _ from 'lodash';
 import { combineLatest, Observable, ObservedValueOf } from 'rxjs';
@@ -168,12 +168,29 @@ export class ArbitrageMonitor {
   }
 
   subscribeArbs(): Observable<ArbPath<DexPool, DexPool, any>[]> {
+    let d0poolMap: Record<PoolId, true>;
+    let d1poolMap: Record<PoolId, true>;
     return this.store.subscribeDexProtocolsCombined().pipe(
       map(dexProtocols => {
         const dex0 = dexProtocols[0].dex;
         const dex1 = dexProtocols[1].dex;
         console.time('Total');
-        const result = _.map(this.pairs, pair => {
+        let isInitial = !d0poolMap || !d1poolMap;
+        if (!d0poolMap) {
+          const poolsMap = dex0.getPoolsMap(this.pairs);
+          d0poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
+        }
+        if (!d1poolMap) {
+          const poolsMap = dex1.getPoolsMap(this.pairs);
+          d1poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
+        }
+        const pairs = this.pairs.filter(pair => {
+          return isInitial || _.find(dexProtocols[0].pools, pool =>
+            d0poolMap[pool.poolId] && _.intersection([pool.token1Id,pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
+          || _.find(dexProtocols[1].pools, pool =>
+              d1poolMap[pool.poolId] && _.intersection([pool.token1Id,pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
+        })
+        const result = _.map(pairs, pair => {
           console.time(pair.join('-'));
           const baseAmount = this.getCurrentCapacity({ pair, dex0, dex1 });
           const arbPath = _.maxBy([

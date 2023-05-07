@@ -1,4 +1,4 @@
-import { SwapTokenMap, Token } from '../types/swap-types';
+import { SwapTokenMap, Token } from '../types/dex-types';
 import { PoolToken } from './types';
 import _ from 'lodash';
 import { Logger } from '../../utils';

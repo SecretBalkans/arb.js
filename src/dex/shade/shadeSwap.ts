@@ -1,10 +1,20 @@
-import { Amount, DexProtocol, DexProtocolName, IPool, IRoute, PoolId, Token } from '../types/swap-types';
+import {
+  Amount,
+  DexProtocol,
+  DexProtocolName,
+  IPool,
+  IRoute,
+  PoolId,
+  SwapToken,
+  SwapTokenMap,
+  Token,
+} from '../types/dex-types';
 import { getShadeTokenBySymbol, toTokenId } from './tokens';
-import { calculateBestShadeSwapRoutes } from './shade-calc';
+import { calculateBestShadeSwapRoutes, findShadePaths } from './shade-calc';
 import { convertCoinFromUDenomV2 } from '../../utils';
 import { Observable } from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
-import { getShadePairs, ShadePair } from './shade-rest';
+import { getShadePairs, ShadePair, TheStore } from './shade-rest';
 import bigInteger from 'big-integer';
 import _ from 'lodash';
 
@@ -19,7 +29,6 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
   public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: ShadePair[]): { route: IRoute<ShadePair>; amountOut: Amount } | null {
     const startingToken = getShadeTokenBySymbol(tokenInId);
     const endingToken = getShadeTokenBySymbol(tokenOutId);
-    poolsHint.length > 10 && console.time('Shade')
     const [route] = calculateBestShadeSwapRoutes({
       inputTokenAmount: amountIn.multipliedBy(10 ** startingToken.decimals),
       startingTokenId: startingToken.id,
@@ -28,7 +37,6 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       maxHops: 7,
       pools: _.map(poolsHint, p=> (p.rawInfo?.id || p['id']) as PoolId)
     });
-    poolsHint.length > 10 && console.timeEnd('Shade')
     return route ? {
       route: route.route.map(r => ({
         pool: r,
@@ -57,5 +65,19 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
           });
         }).catch(console.error), console.error);
     });
+  }
+
+  getPoolsMap(pairs: [SwapToken, SwapToken][]): PoolId[] {
+    const store = TheStore(), pools = store.pools;
+    return _.union(_.flatMap(pairs,([token1, token2]) => {
+      const startingToken = getShadeTokenBySymbol(SwapTokenMap[token1]);
+      const endingToken = getShadeTokenBySymbol(SwapTokenMap[token2]);
+      return _.flatten(findShadePaths({
+        startingTokenId: startingToken.id,
+        endingTokenId: endingToken.id,
+        maxHops: 7,
+        pools,
+      }));
+    }));
   }
 }

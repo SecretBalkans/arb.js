@@ -3,7 +3,7 @@
 import BigNumber from 'bignumber.js';
 import { TheStore, useTokens } from './shade-rest';
 import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../../utils';
-import { Amount, PoolId } from '../types/swap-types';
+import { Amount, PoolId } from '../types/dex-types';
 import _ from 'lodash';
 
 let math = BigNumber;
@@ -280,7 +280,7 @@ class StableSwapSimulator {
   }
 }
 
-function findPaths({ startingTokenId: startingTokenId, endingTokenId: endingTokenId, maxHops: maxHops, pools: pools }) {
+export function findShadePaths({ startingTokenId: startingTokenId, endingTokenId: endingTokenId, maxHops: maxHops, pools: pools }): any[] {
   const tmpArr = []
     , result = []
     , someSet = new Set;
@@ -640,7 +640,7 @@ export function calculateBestShadeSwapRoutes({
 }): ShadeSwapRoute[] {
   const store = TheStore();
   const poolsMap = pools ? _.pick(store.pools, pools) : store.pools;// || (pools ? _.zipObject(_.map(pools, 'id'), pools) : store.pools);
-  const rawPaths = findPaths({
+  const rawPaths = findShadePaths({
     startingTokenId: startingTokenId,
     endingTokenId: endingTokenId,
     maxHops: maxHops,

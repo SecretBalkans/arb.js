@@ -1,7 +1,8 @@
 import { fetchTimeout } from '../../utils';
 import https from 'https';
-import { Pool, StablePool, WeightedPool } from '../../lib/@osmosis/packages/pools/src';
+import { OptimizedRoutes, Pool, StablePool, WeightedPool } from '../../lib/@osmosis/packages/pools/src';
 import _ from 'lodash';
+import incentivizedPoolIds from './incentivizedPoolIds';
 
 const agent = new https.Agent({
   keepAlive: true,
@@ -20,7 +21,7 @@ async function getPoolsLiquidity() {
 }
 
 export let allPools: Pool[];
-
+export let router;
 export async function getOsmoPools(): Promise<Pool[]> {
   const osmoReq = await fetchTimeout('https://osmosis.stakesystems.io/osmosis/gamm/v1beta1/pools?pagination.limit=1250', {
     agent,
@@ -40,5 +41,6 @@ export async function getOsmoPools(): Promise<Pool[]> {
         return new WeightedPool(poolRaw);
       }
     });
+  router = router || new OptimizedRoutes(allPools, incentivizedPoolIds, 'uosmo');
   return allPools;
 }

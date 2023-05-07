@@ -1,5 +1,5 @@
 import { ArbitrageMonitor, DexStore } from './arbitrage/dexArbitrage';
-import { SwapToken } from './dex/types/swap-types';
+import { SwapToken } from './dex/types/dex-types';
 import OsmosisSwap from './dex/osmosis/osmosisSwap';
 import ShadeSwap from './dex/shade/shadeSwap';
 import _ from 'lodash';
