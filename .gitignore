@@ -10,3 +10,4 @@ package-lock.json
 .idea
 !.vscode/tasks.js
 .vscode
+isolate*
