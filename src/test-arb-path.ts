@@ -26,10 +26,14 @@ const logger = new Logger('ArbM');
     [SwapToken.USDT, SwapToken.USDC],
     [SwapToken.ATOM, SwapToken.USDC],
     [SwapToken.OSMO, SwapToken.USDC],
+    [SwapToken.ATOM, SwapToken.OSMO],
+    [SwapToken.stATOM, SwapToken.stOSMO],
+    [SwapToken.stOSMO, SwapToken.USDC],
     [SwapToken.stATOM, SwapToken.ATOM],
     [SwapToken.stOSMO, SwapToken.OSMO],
     [SwapToken.stJUNO, SwapToken.JUNO],
-    [SwapToken.stINJ, SwapToken.INJ],
+    // [SwapToken.stINJ, SwapToken.INJ],
+    // [SwapToken.stLUNA, SwapToken.LUNA],
   ]);
 
   arbitrage.subscribeArbs().subscribe({

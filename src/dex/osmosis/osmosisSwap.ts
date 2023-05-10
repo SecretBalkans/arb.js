@@ -12,7 +12,7 @@ import {
 } from '../types/dex-types';
 import { getTokenDenom, toTokenId } from './tokens';
 import { calculateBestOsmosisSwapRoute } from './osmosis-calc';
-import { getOsmoPools, router } from './osmosis-rest';
+import { getOsmoPairPools, getOsmoPools } from './osmosis-rest';
 import { convertCoinFromUDenomV2, Logger } from '../../utils';
 import { Observable } from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
@@ -29,7 +29,7 @@ export default class OsmosisSwap extends DexProtocol<Pool> {
     super();
   }
 
-  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Pool[] = this.pools.map(i => i.internalPool)): { route: IRoute<Pool>; amountOut: Amount } | null {
+  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Pool[]): { route: IRoute<Pool>; amountOut: Amount } | null {
     const { denom: tokenInDenomOsmo, decimals: tokenInOsmoDecimals } = getTokenDenom(tokenInId);
     const { denom: tokenOutDenomOsmo, decimals: tokenOutOsmoDecimals } = getTokenDenom(tokenOutId);
 
@@ -72,9 +72,7 @@ export default class OsmosisSwap extends DexProtocol<Pool> {
       try {
         const { denom: tokenInDenomOsmo } = getTokenDenom(SwapTokenMap[token1]);
         const { denom: tokenOutDenomOsmo } = getTokenDenom(SwapTokenMap[token2]);
-        return [...router.getCandidateRoutes(tokenInDenomOsmo, tokenOutDenomOsmo, 4, 3),
-          ...router.getCandidateRoutes(tokenOutDenomOsmo, tokenInDenomOsmo, 4, 3)]
-          .flatMap(d => d.pools.map(pool => pool.id));
+        return getOsmoPairPools(tokenInDenomOsmo, tokenOutDenomOsmo);
       } catch (err) {
         logger.debugOnce(err.message);
         return [];

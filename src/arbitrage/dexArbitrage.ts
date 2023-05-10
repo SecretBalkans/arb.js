@@ -28,6 +28,7 @@ export class ArbPath<T extends DexPool, K extends DexPool, B> {
   route1?: IRoute<K>;
   bridge?: B[];
   amountIn?: Amount;
+  amountBridge?: Amount;
   amountOut?: Amount;
   error0?: Error;
   error1?: Error;
@@ -40,6 +41,7 @@ export class ArbPath<T extends DexPool, K extends DexPool, B> {
                 route1,
                 bridge,
                 amountIn,
+                amountBridge,
                 amountOut,
                 error0,
                 error1,
@@ -51,6 +53,7 @@ export class ArbPath<T extends DexPool, K extends DexPool, B> {
                 route1?: IRoute<K>,
                 bridge?: B[],
                 amountIn?: Amount,
+                amountBridge?: Amount,
                 amountOut?: Amount,
                 error0?: Error,
                 error1?: Error,
@@ -63,6 +66,7 @@ export class ArbPath<T extends DexPool, K extends DexPool, B> {
     this.route1 = route1;
     this.bridge = bridge;
     this.amountIn = amountIn;
+    this.amountBridge = amountBridge;
     this.amountOut = amountOut;
     this.error0 = error0;
     this.error1 = error1;
@@ -79,7 +83,7 @@ export class ArbPath<T extends DexPool, K extends DexPool, B> {
     if (this.error1) {
       logger.debugOnce(this.dex1.name, this.error1);
     }
-    return this.amountIn ? `(${this.winPercentage?.multipliedBy(100)?.toFixed(2)}%) ${this.dex0.name}-${this.dex1.name} [${this.pair[0]}-${this.pair[1]}] ${this.amountIn?.toString()}->${this.amountOut?.toString()}` : `(N/A) ${this.dex0.name}-${this.dex1.name} [${this.pair[0]}-${this.pair[1]}]`;
+    return this.amountIn ? `(${this.winPercentage?.multipliedBy(100)?.toFixed(2)}%) ${this.dex0.name}-${this.dex1.name} [${this.pair[0]}-${this.pair[1]}] ${this.amountIn?.toString()}->${this.amountBridge?.toString()} ${this.pair[1]}->${this.amountOut?.toString()}` : `(N/A) ${this.dex0.name}-${this.dex1.name} [${this.pair[0]}-${this.pair[1]}]`;
   }
 }
 
@@ -123,6 +127,7 @@ export class ArbitrageMonitor {
       error0,
       error1,
       amountIn: amount,
+      amountBridge: interAmount,
       amountOut,
       dex0: dexProtocol0,
       dex1: dexProtocol1,
@@ -186,10 +191,10 @@ export class ArbitrageMonitor {
         }
         const pairs = this.pairs.filter(pair => {
           return isInitial || _.find(dexProtocols[0].pools, pool =>
-            d0poolMap[pool.poolId] && _.intersection([pool.token1Id,pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
-          || _.find(dexProtocols[1].pools, pool =>
-              d1poolMap[pool.poolId] && _.intersection([pool.token1Id,pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
-        })
+              d0poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
+            || _.find(dexProtocols[1].pools, pool =>
+              d1poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0);
+        });
         const result = _.map(pairs, pair => {
           console.time(pair.join('-'));
           const baseAmount = this.getCurrentCapacity({ pair, dex0, dex1 });
@@ -236,7 +241,7 @@ export class ArbitrageMonitor {
                            dex0,
                            dex1,
                          }: { pair: ArbPair, dex0: DexProtocol<DexPool>, dex1: DexProtocol<DexPool> }): string {
-    return `${pair.sort().join('-')}[${[dex0.name, dex1.name].sort().join('-')}]`;
+    return `${pair.slice().sort().join('-')}[${[dex0.name, dex1.name].sort().join('-')}]`;
   }
 
   private setCurrentCapacity(path: ArbPath<DexPool, DexPool, any>) {

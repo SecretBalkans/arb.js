@@ -639,7 +639,7 @@ export function calculateBestShadeSwapRoutes({
   isReverse: boolean,
 }): ShadeSwapRoute[] {
   const store = TheStore();
-  const poolsMap = pools ? _.pick(store.pools, pools) : store.pools;// || (pools ? _.zipObject(_.map(pools, 'id'), pools) : store.pools);
+  const poolsMap = pools?.length ? _.pick(store.pools, pools) : store.pools;// || (pools ? _.zipObject(_.map(pools, 'id'), pools) : store.pools);
   const rawPaths = findShadePaths({
     startingTokenId: startingTokenId,
     endingTokenId: endingTokenId,

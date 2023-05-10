@@ -34,7 +34,11 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       startingTokenId: startingToken.id,
       endingTokenId: endingToken.id,
       isReverse: false,
-      maxHops: 7,
+      maxHops: 5,
+      // TODO: there is a limit on secret network for max hops length.
+      //  we need to split big routes into two smaller ones and execute it into
+      //  two messages and thus support bigger (7-8-more?) routes
+      //  as they can often give better arb
       pools: _.map(poolsHint, p=> (p.rawInfo?.id || p['id']) as PoolId)
     });
     return route ? {
@@ -75,7 +79,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       return _.flatten(findShadePaths({
         startingTokenId: startingToken.id,
         endingTokenId: endingToken.id,
-        maxHops: 7,
+        maxHops: 5,
         pools,
       }));
     }));

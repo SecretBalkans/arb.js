@@ -40,7 +40,7 @@ export class OptimizedRoutes {
     return this._pools;
   }
 
-  protected getCandidateRoutes(
+  public getCandidateRoutes(
     tokenInDenom: string,
     tokenOutDenom: string,
     maxHops = 4,

@@ -1,6 +1,7 @@
 import { Int } from '@keplr-wallet/unit';
 import { CoinAmount } from '../types/dex-types';
-import { router } from './osmosis-rest';
+import { getPairRouter } from './osmosis-rest';
+
 export function calculateBestOsmosisSwapRoute({
                                                 tokenInDenom,
                                                 tokenInAmount,
@@ -11,6 +12,8 @@ export function calculateBestOsmosisSwapRoute({
   tokenOutDenom: string
 }) {
   const int = tokenInAmount.toString();
+
+  const router = getPairRouter(tokenInDenom, tokenOutDenom);
   const routes = router.getOptimizedRoutesByTokenIn(
     {
       denom: tokenInDenom,
@@ -18,11 +21,11 @@ export function calculateBestOsmosisSwapRoute({
     },
     tokenOutDenom,
     4,
-    3
+    3,
   );
   return routes.map(r => ({
     amount: r.amount,
     pools: r.pools,
-    out: router.calculateTokenOutByTokenIn(routes).amount
-  }))
+    out: router.calculateTokenOutByTokenIn(routes).amount,
+  }));
 }

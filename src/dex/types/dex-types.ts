@@ -33,6 +33,8 @@ export enum SwapToken {
   stOSMO = 'stOSMO',
   stINJ = 'stINJ',
   INJ = 'INJ',
+  stLUNA = 'stLUNA',
+  LUNA = 'LUNA',
   OSMO = 'OSMO',
   JUNO = 'JUNO',
   stJUNO = 'stJUNO',
@@ -66,6 +68,8 @@ export const SwapTokenMap: Record<SwapToken, Token> = {
   BLD: SwapToken.BLD as Token,
   INJ: SwapToken.INJ as Token,
   stINJ: SwapToken.stINJ as Token,
+  LUNA: SwapToken.LUNA as Token,
+  stLUNA: SwapToken.stLUNA as Token,
 };
 
 export interface IPool<T> {
@@ -103,7 +107,7 @@ export abstract class DexProtocol<T extends DexPool> implements ICanSwap<T>, ILi
 
   abstract calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: T[]): { route: IRoute<T>; amountOut: Amount } | null;
 
-  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools = this.pools.map(p => p.internalPool)): { route?: IRoute<T>; amountOut?: Amount, internalSwapError: Error | null } {
+  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools): { route?: IRoute<T>; amountOut?: Amount, internalSwapError: Error | null } {
     try {
       const result = this.calcSwapWithPools(amountIn, tokenInId, tokenOutId, pools);
       if (!result) {

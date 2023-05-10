@@ -2,6 +2,7 @@ import { fetchTimeout } from '../../utils';
 import https from 'https';
 import { OptimizedRoutes, Pool, StablePool, WeightedPool } from '../../lib/@osmosis/packages/pools/src';
 import _ from 'lodash';
+import { PoolId } from '../types/dex-types';
 import incentivizedPoolIds from './incentivizedPoolIds';
 
 const agent = new https.Agent({
@@ -21,7 +22,35 @@ async function getPoolsLiquidity() {
 }
 
 export let allPools: Pool[];
-export let router;
+
+export let routers: Record<string, OptimizedRoutes> = {};
+let globalRouter: OptimizedRoutes;
+let pairPools: Record<string, PoolId[]> = {};
+
+export function getOsmoPairPools(tokenInDenom: string, tokenOutDenom: string): PoolId[] {
+  const pairKey = getPairKey(tokenInDenom, tokenOutDenom);
+  if (!pairPools[pairKey]) {
+    globalRouter = globalRouter || new OptimizedRoutes(allPools, incentivizedPoolIds, 'uosmo');
+    pairPools[pairKey] = [...globalRouter.getCandidateRoutes(tokenInDenom, tokenOutDenom, 4, 3),
+      ...globalRouter.getCandidateRoutes(tokenOutDenom, tokenInDenom, 4, 3)]
+      .flatMap(d => d.pools.map(pool => pool.id as PoolId));
+  }
+  return pairPools[pairKey];
+}
+
+export function getPairKey(tokenInDenom: string, tokenOutDenom: string) {
+  return [tokenInDenom, tokenOutDenom].sort().join('-');
+}
+
+
+export function getPairRouter(tokenInDenom: string, tokenOutDenom: string) {
+  const routerPairKey = getPairKey(tokenInDenom, tokenOutDenom);
+  if (!routers[routerPairKey]) {
+    const pairPools = getOsmoPairPools(tokenInDenom, tokenOutDenom);
+    routers[routerPairKey] = new OptimizedRoutes(allPools.filter(p => pairPools.includes(p.id as PoolId)), incentivizedPoolIds, 'uosmo');
+  }
+  return routers[routerPairKey];
+}
 export async function getOsmoPools(): Promise<Pool[]> {
   const osmoReq = await fetchTimeout('https://osmosis.stakesystems.io/osmosis/gamm/v1beta1/pools?pagination.limit=1250', {
     agent,
@@ -41,6 +70,7 @@ export async function getOsmoPools(): Promise<Pool[]> {
         return new WeightedPool(poolRaw);
       }
     });
-  router = router || new OptimizedRoutes(allPools, incentivizedPoolIds, 'uosmo');
+  routers = {};
+  globalRouter = null;
   return allPools;
 }
