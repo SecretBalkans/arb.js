@@ -103,13 +103,13 @@ export class ArbitrageMonitor {
     pair: ArbPair,
     dexProtocol0: DexProtocol<T>,
     dexProtocol1: DexProtocol<K>,
-    hintRoutes: Pick<ArbPath<T, K, B>, 'route0' | 'route1'> = null): ArbPath<T, K, B> {
+    routesHints: Pick<ArbPath<T, K, B>, 'route0' | 'route1'> = null): ArbPath<T, K, B> {
     const swapPair: [Token, Token] = [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]];
     const {
       amountOut: interAmount,
       route: route0,
       internalSwapError: error0,
-    } = dexProtocol0.calcSwap(amount, swapPair, hintRoutes?.route0.map(r => r.pool));
+    } = dexProtocol0.calcSwap(amount, swapPair, routesHints?.route0.map(r => r.pool));
     if (error0) {
       return new ArbPath<T, K, B>({
         error0,
@@ -122,7 +122,7 @@ export class ArbitrageMonitor {
       amountOut,
       route: route1,
       internalSwapError: error1,
-    } = dexProtocol1.calcSwap(interAmount, reversePair(swapPair), hintRoutes?.route1.map(r => r.pool));
+    } = dexProtocol1.calcSwap(interAmount, reversePair(swapPair), routesHints?.route1.map(r => r.pool));
     return new ArbPath<T, K, B>({
       error0,
       error1,
@@ -216,7 +216,9 @@ export class ArbitrageMonitor {
             }
             return capacityUntilBalance;
           } else {
-            this.setCurrentCapacity(arbRoute);
+            // Reset capacity of arb routes that are not winning anymore
+            const defaultCapacity = this.calcDexArbOut(this.DEFAULT_BASE_AMOUNT, arbRoute.pair, arbRoute.dex0, arbRoute.dex1, arbRoute);
+            this.setCurrentCapacity(defaultCapacity);
             return arbRoute;
           }
         });
