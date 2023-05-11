@@ -208,11 +208,11 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
 }
 
 
-export const TheStore = () => ({
+/*export const TheStore = () => ({
   pools: parsePoolsRaw(pairs),
   getPoolById: (poolId: string) => parseRawPool(parsePool$1(_.find(pairs, { id: poolId}))),
   isStablePool: (poolId: string) => TheStore().getPoolById(poolId).stableParams !== null
-})
+})*/
 
 export const useTokens = () => ({
   getTokenDecimals(tokenId: string): number {
@@ -220,7 +220,7 @@ export const useTokens = () => ({
   },
 })
 
-export function parsePoolsRaw(e: TokenPairInfoRaw[]): { [p: string]: { stakingContract: any; fees: any; token0Id: any; contract: any; token1Id: any; flags: any; token0Amount: BigNumber; rewardTokens: any; stableParams: any; id: any; lpTokenId: any; metrics: { volume: any; liquidity: BigNumber; currency: any; apy: any }; token1Amount: BigNumber } } {
+export function parsePoolsRaw(e: TokenPairInfoRaw[]): { [p: string]: ShadeRoutePool } {
   return e.reduce((t, n) => {
       const o = n.volume ? {
         volume: n.volume.volume,

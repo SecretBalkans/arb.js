@@ -248,20 +248,20 @@ export class ArbitrageMonitor {
           ], d => d.amountOut?.minus(d.amountIn).dividedBy(d.amountIn).toNumber() || 0);
           console.timeEnd(pair.join('-'));
           return arbPath;
-        }).map((arbRoute) => {
-          if (arbRoute.amountOut?.isGreaterThan(arbRoute.amountIn)) {
-            console.time('Capacity/' + arbRoute.pair.join('-'));
-            const capacityUntilBalance = this.getCapacityUntilBalance(arbRoute);
-            console.timeEnd('Capacity/' + arbRoute.pair.join('-'));
+        }).map((arbPath: ArbPath<DexPool, DexPool, any>) => {
+          if (arbPath.amountOut?.isGreaterThan(arbPath.amountIn)) {
+            console.time('Capacity/' + arbPath.pair.join('-'));
+            const capacityUntilBalance = this.getCapacityUntilBalance(arbPath);
+            console.timeEnd('Capacity/' + arbPath.pair.join('-'));
             if (capacityUntilBalance) {
               this.setCurrentCapacity(capacityUntilBalance);
             }
             return capacityUntilBalance;
           } else {
             // Reset capacity of arb routes that are not winning anymore
-            const defaultCapacity = this.calcDexArbOut(this.DEFAULT_BASE_AMOUNT, arbRoute.pair, arbRoute.dex0, arbRoute.dex1, arbRoute);
+            const defaultCapacity = this.calcDexArbOut(this.DEFAULT_BASE_AMOUNT, arbPath.pair, arbPath.dex0, arbPath.dex1, arbPath);
             this.setCurrentCapacity(defaultCapacity);
-            return arbRoute;
+            return arbPath;
           }
         });
         console.timeEnd('Total');

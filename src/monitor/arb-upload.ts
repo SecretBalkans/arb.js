@@ -43,7 +43,7 @@ function toRawArbV1(json: ArbV1): ArbV1Raw {
     amount_bridge: json.amountBridge,
     amount_in: json.amountIn,
     amount_out: json.amountOut,
-    bridge: json.bridge,
+    bridge: json.bridge || "",
     dex_0: json.dex0,
     dex_1: json.dex1,
     id: json.id,
@@ -101,7 +101,8 @@ export default class ArbMonitorUploader {
       this.arbMonitor.subscribeArbs().subscribe({
         next: (arbPaths) => {
           this.nextTs();
-          arbPaths.forEach(ap => {
+          const ts = this.ts;
+          const toUpload = arbPaths.reduce((res, ap) => {
             const json = ap.toJSON();
             this.latestArbPaths[json.id] = json;
             const persistedArbPath = this.persistedArbPaths[json.id];
@@ -115,17 +116,31 @@ export default class ArbMonitorUploader {
               || json.pair[1] !== persistedArbPath.token1) {
               // There is a change in the arb
               const arbV1 = this.arbPathToV1(ap);
-              this.uploadArbPath(arbV1).then((res) => {
-                console.log(res);
-                this.persistedArbPaths[json.id] = arbV1;
-              }).catch(console.error.bind(console));
+              res.many.push(toRawArbV1(arbV1));
             } else {
-              this.updateArbTs(json.id, this.ts).then((res) => {
-                console.log(res);
-                this.persistedArbPaths[json.id].ts = this.ts;
-              }).catch(console.error.bind(console));
+              res.ts.push(json.id);
             }
+            return res;
+          }, {
+            ts: [],
+            many: [],
+          } as {
+            many: ArbV1Raw[],
+            ts: string[]
           });
+          this.updateManyArbTs(toUpload.ts, ts).then((res) => {
+            console.log(res);
+            toUpload.ts.forEach(id => {
+              this.persistedArbPaths[id].ts = ts;
+            });
+          }).catch(console.error.bind(console));
+
+          this.uploadManyArbs(toUpload.many).then((res) => {
+            console.log(`manyArbs`, { rows: res.rows, many: res.updateManyArbs.map(r => r.id)});
+            res.updateManyArbs.forEach(d => {
+              this.persistedArbPaths[d.id] = d.arb;
+            });
+          }).catch(console.error.bind(console));
         },
       });
       all.data.arb_v1.forEach(rawArb => {
@@ -134,7 +149,41 @@ export default class ArbMonitorUploader {
     });
   }
 
-  async uploadArbPath(arb: ArbV1): Promise<{ updateArb: { id: string, ts: string} }> {
+  async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1 }[] }> {
+    const result = await execute(`
+  mutation upsertManyArbs ($objects: [arb_v1_insert_input!]!) {
+    insert_arb_v1(objects: $objects, 
+      on_conflict: {
+        constraint: arb_v1_pkey, 
+        update_columns: [ 
+          amount_in, amount_bridge, amount_out, 
+          dex_0, dex_1, 
+          token_0, token_1,  
+          route_0, route_1,
+          ts, last_ts
+        ]
+    })
+    {
+      affected_rows
+    }
+  }
+  `, {
+      objects: arbs,
+    });
+
+    if (result.errors) {
+      throw new Error(JSON.stringify(result.errors));
+    }
+    return {
+      rows: result.data.insert_arb_v1,
+      updateManyArbs: arbs.map(arb => ({
+        arb: parseRawArbV1(arb),
+        id: arb.id,
+      })),
+    };
+  }
+
+  async uploadArbPath(arb: ArbV1): Promise<{ updateArb: { id: string, ts: string } }> {
     const result = await execute(`
 mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp! = "", $amount_bridge: float8 = "$amount_bridge", $amount_in: float8 = "", $amount_out: float8 = "", $dex_0: String = "", $bridge: jsonb = "", $dex_1: String = "", $route_1: jsonb = "", $route_0: jsonb = "", $token_0: String = "", $token_1: String = "") {
   insert_arb_v1_one(
@@ -194,24 +243,23 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
       throw new Error(JSON.stringify(result.errors));
     }
     return {
-      updateArb: result.data.insert_arb_v1_one
+      updateArb: result.data.insert_arb_v1_one,
     };
   }
 
-  async updateArbTs(id: string, ts: Date): Promise<{updateTs: { id: string, ts: string} }> {
+  async updateManyArbTs(arbIds: string[], ts: Date): Promise<{ updateManyTs: any }> {
     const result = await execute(`
-mutation updateArbTs($id: String! = "", $ts: timestamp! = "") {
-  update_arb_v1_by_pk(pk_columns: {id: $id}, _set: {ts: $ts}) {
-    ts
-    id
+mutation updateManyArbTs($arbIds: [String!]! = "", $ts: timestamp! = "") {
+  update_arb_v1_many(updates: {where: {id: {_in: $arbIds}}, _set: {ts: $ts}}) {
+    affected_rows
   }
 }
 `, {
+      arbIds,
       ts,
-      id,
     });
     return {
-      updateTs: result.data.update_arb_v1_by_pk
+      updateManyTs: result.data.update_arb_v1_many,
     };
 
   }

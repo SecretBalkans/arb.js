@@ -1,12 +1,8 @@
 // noinspection CommaExpressionJS
 
 import BigNumber from 'bignumber.js';
-import { ShadeRoutePool, TheStore, useTokens } from './shade-rest';
-import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../../utils';
-import { Amount, PoolId } from '../types/dex-types';
+import { ShadeRoutePool } from './shade-rest';
 import _ from 'lodash';
-
-let math = BigNumber;
 
 class StableSwapSimulator {
   pool0Size: any;
@@ -151,13 +147,13 @@ class StableSwapSimulator {
 
   verifySwapPriceImpactInBounds(e, t, n) {
     const o = this.priceImpactAt(e, t, n);
-    if (o.isGreaterThan(this.priceImpactLimit) || o.isLessThan(math(0)))
+    if (o.isGreaterThan(this.priceImpactLimit) || o.isLessThan(BigNumber(0)))
       throw Error(`The slippage of this trade is outside of the acceptable range of 0% - ${this.priceImpactLimit}%.`);
   }
 
   priceImpactAt(e, t, n) {
     const o = n ? this.priceToken1() : this.priceToken0();
-    return (n ? this.priceToken1At(e, t) : this.priceToken0At(e, t)).dividedBy(o).minus(math(1)).multipliedBy(100);
+    return (n ? this.priceToken1At(e, t) : this.priceToken0At(e, t)).dividedBy(o).minus(BigNumber(1)).multipliedBy(100);
   }
 
   priceImpactToken0ForToken1(e) {
@@ -177,7 +173,7 @@ class StableSwapSimulator {
   }
 
   priceToken1At(e, t) {
-    return math(1).dividedBy(this.negativeTangent(e.dividedBy(this.invariant), this.priceOfToken1.multipliedBy(t).dividedBy(this.invariant)));
+    return BigNumber(1).dividedBy(this.negativeTangent(e.dividedBy(this.invariant), this.priceOfToken1.multipliedBy(t).dividedBy(this.invariant)));
   }
 
   priceToken1() {
@@ -207,7 +203,7 @@ class StableSwapSimulator {
 
   geometricMeanDoubled() {
     const e = this.token1TvlInUnitsToken0();
-    return this.pool0Size.isLessThanOrEqualTo(math(1)) || e.isLessThanOrEqualTo(math(1)) ? math(0) : this.pool0Size.sqrt().multipliedBy(e.sqrt()).multipliedBy(math(2));
+    return this.pool0Size.isLessThanOrEqualTo(BigNumber(1)) || e.isLessThanOrEqualTo(BigNumber(1)) ? BigNumber(0) : this.pool0Size.sqrt().multipliedBy(e.sqrt()).multipliedBy(BigNumber(2));
   }
 
   calculateInvariant() {
@@ -231,17 +227,17 @@ class StableSwapSimulator {
   derivRespectToInvOfInvFn(e, t) {
     const n = this.token1TvlInUnitsToken0()
       , o = this.getCoeffScaledByInv(e, t, n)
-      , s = math(-2).multipliedBy(t).plus(1).multipliedBy(this.pool0Size.minus(e).plus(n)).minus(e);
+      , s = BigNumber(-2).multipliedBy(t).plus(1).multipliedBy(this.pool0Size.minus(e).plus(n)).minus(e);
     return o.multipliedBy(s).minus(e.dividedBy(2));
   }
 
   getCoeffScaledByInv(e, t, n) {
-    return this.a.multipliedBy(math(4).multipliedBy(this.pool0Size.dividedBy(e)).multipliedBy(n.dividedBy(e)).pow(t));
+    return this.a.multipliedBy(BigNumber(4).multipliedBy(this.pool0Size.dividedBy(e)).multipliedBy(n.dividedBy(e)).pow(t));
   }
 
   getCoeff(e, t, n) {
     const o = e.multipliedBy(t);
-    return this.a.multipliedBy(math(4).multipliedBy(o).pow(n));
+    return this.a.multipliedBy(BigNumber(4).multipliedBy(o).pow(n));
   }
 
   invariantFnFromPoolSizes(e, t) {
@@ -271,16 +267,24 @@ class StableSwapSimulator {
 
   findZeroWithPool0Params(e, t) {
     const n = this.pool0Size.dividedBy(this.invariant);
-    return S(e, t, n, n, !1, void 0, math(0));
+    return S(e, t, n, n, !1, void 0, BigNumber(0));
   }
 
   findZeroWithPool1Params(e, t) {
     const n = this.token1TvlInUnitsToken0().dividedBy(this.invariant);
-    return S(e, t, n, n, !1, void 0, math(0));
+    return S(e, t, n, n, !1, void 0, BigNumber(0));
   }
 }
 
-export function findShadePaths({ startingTokenId: startingTokenId, endingTokenId: endingTokenId, maxHops: maxHops, pools: pools }): any[] {
+export function findShadePaths({
+                                 startingTokenId: startingTokenId,
+                                 endingTokenId: endingTokenId,
+                                 maxHops: maxHops,
+                                 pools: pools,
+                               }: {
+  startingTokenId: string, endingTokenId: string, maxHops: number,
+  pools: Record<string, ShadeRoutePool>
+}): any[] {
   const tmpArr = []
     , result = []
     , someSet = new Set;
@@ -306,301 +310,6 @@ export function findShadePaths({ startingTokenId: startingTokenId, endingTokenId
     result;
 }
 
-function calculatePathOutcome({
-                                startingTokenAmount: startingTokenAmount,
-                                startingTokenId: startingTokenId,
-                                path: path,
-                              }) {
-  const k = TheStore()
-    , { isStablePool: isStablePool, getPoolById: getPoolById } = k
-    , g = useTokens()
-    , { getTokenDecimals: getTokenDecimals } = g
-    , pathReduceResult = path.reduce((pathSegment, poolId) => {
-      const {
-        outputTokenId: outputTokenId,
-        quoteOutputAmount: quoteOutputAmount,
-        quoteShadeDaoFee: re,
-        quotePriceImpact: totalPriceImpact,
-        quoteLPFee: totalLPFee,
-        hops: ne,
-      } = pathSegment;
-      let otherTokenDenomAmount, priceImpact;
-      const poolPairInfo = getPoolById(poolId);
-      // , he = parseRawPool(poolPairInfo);
-      ne.push(poolPairInfo);
-      const token0Decimals = getTokenDecimals(poolPairInfo.token0Id)
-        , token1Decimals = getTokenDecimals(poolPairInfo.token1Id)
-        , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(10 ** token0Decimals)
-        , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(10 ** token1Decimals)
-        , outputTokenDecimals = getTokenDecimals(outputTokenId)
-        , outputAmountString = quoteOutputAmount.toString()
-        , inputToken0Amount = convertCoinFromUDenomV2(outputAmountString, outputTokenDecimals);
-      let otherTokenId;
-      outputTokenId === poolPairInfo.token0Id ? otherTokenId = poolPairInfo.token1Id : otherTokenId = poolPairInfo.token0Id;
-      const otherTokenDecimals = getTokenDecimals(otherTokenId);
-      if (isStablePool(poolId))
-        if (outputTokenId === poolPairInfo.token0Id && poolPairInfo.stableParams !== null) {
-          const stablePoolParams = {
-            inputToken0Amount: inputToken0Amount,
-            poolToken0Amount: poolPairInfo.token0Amount,
-            poolToken1Amount: poolPairInfo.token1Amount,
-            priceRatio: poolPairInfo.stableParams.priceRatio,
-            a: poolPairInfo.stableParams.a,
-            gamma1: poolPairInfo.stableParams.gamma1,
-            gamma2: poolPairInfo.stableParams.gamma2,
-            liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-            daoFee: poolPairInfo.fees.dao,
-            minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-            minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-            priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-          }
-            , otherTokenAmount = stableSwapToken0ToToken1InPool(stablePoolParams);
-          otherTokenDenomAmount = math(convertCoinToUDenomV2(otherTokenAmount, otherTokenDecimals).toString()),
-            priceImpact = calculateStableSwapPriceImpactInputToken0(stablePoolParams);
-        } else if (outputTokenId === poolPairInfo.token1Id && poolPairInfo.stableParams !== null) {
-          const Z = {
-            inputToken1Amount: inputToken0Amount,
-            poolToken0Amount: poolPairInfo.token0Amount,
-            poolToken1Amount: poolPairInfo.token1Amount,
-            priceRatio: poolPairInfo.stableParams.priceRatio,
-            a: poolPairInfo.stableParams.a,
-            gamma1: poolPairInfo.stableParams.gamma1,
-            gamma2: poolPairInfo.stableParams.gamma2,
-            liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-            daoFee: poolPairInfo.fees.dao,
-            minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-            minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-            priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-          }
-            , V = stableSwapToken1ToToken0InPool(Z);
-          otherTokenDenomAmount = math(convertCoinToUDenomV2(V, otherTokenDecimals).toString()),
-            priceImpact = calculateStableSwapPriceImpactInputToken1(Z);
-        } else {
-          throw Error('stableswap parameter error');
-        } else if (outputTokenId === poolPairInfo.token0Id) {
-        otherTokenDenomAmount = Fo({
-          token0LiquidityAmount: token0AmountInDenom,
-          token1LiquidityAmount: token1AmountInDenom,
-          token0InputAmount: quoteOutputAmount,
-          fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-        });
-        priceImpact = calculateXYKPriceImpactFromToken0Amount({
-          token0LiquidityAmount: token0AmountInDenom,
-          token1LiquidityAmount: token1AmountInDenom,
-          token0InputAmount: quoteOutputAmount,
-        });
-      } else if (outputTokenId === poolPairInfo.token1Id)
-        otherTokenDenomAmount = Ro({
-          token0LiquidityAmount: token0AmountInDenom,
-          token1LiquidityAmount: token1AmountInDenom,
-          token1InputAmount: quoteOutputAmount,
-          fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-        }),
-          priceImpact = calculateXYKPriceImpactFromToken1Amount({
-            token0LiquidityAmount: token0AmountInDenom,
-            token1LiquidityAmount: token1AmountInDenom,
-            token1InputAmount: quoteOutputAmount,
-          });
-      else
-        throw Error('constant product rule swap parameter error');
-      return {
-        outputTokenId: otherTokenId,
-        quoteOutputAmount: otherTokenDenomAmount,
-        quoteShadeDaoFee: re.plus(poolPairInfo.fees.dao),
-        quoteLPFee: totalLPFee.plus(poolPairInfo.fees.liquidityProvider),
-        quotePriceImpact: totalPriceImpact.plus(priceImpact),
-        hops: ne,
-      };
-    }
-    , {
-      outputTokenId: startingTokenId,
-      quoteOutputAmount: startingTokenAmount,
-      quoteShadeDaoFee: math(0),
-      quoteLPFee: math(0),
-      quotePriceImpact: math(0),
-      hops: [],
-    })
-    , {
-    outputTokenId: $,
-    quoteOutputAmount: F,
-    quoteShadeDaoFee: P,
-    quoteLPFee: I,
-    quotePriceImpact: d,
-    hops: rt,
-  } = pathReduceResult;
-  return {
-    inputAmount: startingTokenAmount,
-    quoteOutputAmount: F,
-    quoteShadeDaoFee: P,
-    quoteLPFee: I,
-    priceImpact: d,
-    sourceTokenId: startingTokenId,
-    targetTokenId: $,
-    route: rt,
-  };
-}
-
-function calculatePathQuotaByEnding({
-                                      endingTokenAmount: endingTokenAmount,
-                                      endingTokenId: endingTokenId,
-                                      path: path,
-                                    }) {
-  const k = TheStore()
-    , { isStablePool: isStablePool, getPoolById: getPoolByIdFn } = k
-    , utils1 = useTokens()
-    , { getTokenDecimals: getTokenDecimals } = utils1
-    , {
-    inputTokenId: sourceTokenId,
-    quoteInputAmount: inputAmount,
-    quoteShadeDaoFee: quoteShadeDaoFee,
-    quoteLPFee: quoteLpFee,
-    quotePriceImpact: priceImpact,
-    hops: hopsButAlsoRouteUnclear,
-  } = [...path].reverse().reduce((pathSegment, poolId) => {
-    const {
-      inputTokenId: inputTokenId,
-      quoteInputAmount: quoteInputAmount,
-      quoteShadeDaoFee: quoteShadeDaoFee,
-      quotePriceImpact: quotePriceImpact,
-      quoteLPFee: quoteLpFee,
-      hops: numOfHops,
-    } = pathSegment;
-    let otherTokenAmount, priceImpact;
-    const poolPairInfo = getPoolByIdFn(poolId);
-    numOfHops.unshift(poolPairInfo);
-    const token0Decimals = getTokenDecimals(poolPairInfo.token0Id)
-      , token1Decimals = getTokenDecimals(poolPairInfo.token1Id)
-      , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(10 ** token0Decimals)
-      , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(10 ** token1Decimals)
-      , inputTokenDecimals = getTokenDecimals(inputTokenId)
-      , inputAmount = quoteInputAmount.toString()
-      , l = convertCoinFromUDenomV2(inputAmount, inputTokenDecimals);
-    let u;
-    inputTokenId === poolPairInfo.token0Id ? u = poolPairInfo.token1Id : u = poolPairInfo.token0Id;
-    const te = getTokenDecimals(u);
-    if (isStablePool(poolId)) {
-      if (inputTokenId === poolPairInfo.token1Id && poolPairInfo.stableParams !== null) {
-        const Z = {
-          outputToken1Amount: l,
-          poolToken0Amount: poolPairInfo.token0Amount,
-          poolToken1Amount: poolPairInfo.token1Amount,
-          priceRatio: poolPairInfo.stableParams.priceRatio,
-          a: poolPairInfo.stableParams.a,
-          gamma1: poolPairInfo.stableParams.gamma1,
-          gamma2: poolPairInfo.stableParams.gamma2,
-          liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-          daoFee: poolPairInfo.fees.dao,
-          minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-          minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-          priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-        }
-          , startingInputTokenAmount = getTradeInputOfSimulateReverseToken0WithToken1Trade(Z);
-        otherTokenAmount = math(convertCoinToUDenomV2(startingInputTokenAmount, te).toString());
-        const b = {
-          inputToken0Amount: startingInputTokenAmount,
-          poolToken0Amount: poolPairInfo.token0Amount,
-          poolToken1Amount: poolPairInfo.token1Amount,
-          priceRatio: poolPairInfo.stableParams.priceRatio,
-          a: poolPairInfo.stableParams.a,
-          gamma1: poolPairInfo.stableParams.gamma1,
-          gamma2: poolPairInfo.stableParams.gamma2,
-          liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-          daoFee: poolPairInfo.fees.dao,
-          minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-          minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-          priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-        };
-        priceImpact = calculateStableSwapPriceImpactInputToken0(b);
-      } else if (inputTokenId === poolPairInfo.token0Id && poolPairInfo.stableParams !== null) {
-        const Z = {
-          outputToken0Amount: l,
-          poolToken0Amount: poolPairInfo.token0Amount,
-          poolToken1Amount: poolPairInfo.token1Amount,
-          priceRatio: poolPairInfo.stableParams.priceRatio,
-          a: poolPairInfo.stableParams.a,
-          gamma1: poolPairInfo.stableParams.gamma1,
-          gamma2: poolPairInfo.stableParams.gamma2,
-          liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-          daoFee: poolPairInfo.fees.dao,
-          minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-          minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-          priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-        }
-          , V = getTradeInputOfSimulateReverseToken1WithToken0Trade(Z);
-        otherTokenAmount = math(convertCoinToUDenomV2(V, te).toString());
-        const b = {
-          inputToken1Amount: V,
-          poolToken0Amount: poolPairInfo.token0Amount,
-          poolToken1Amount: poolPairInfo.token1Amount,
-          priceRatio: poolPairInfo.stableParams.priceRatio,
-          a: poolPairInfo.stableParams.a,
-          gamma1: poolPairInfo.stableParams.gamma1,
-          gamma2: poolPairInfo.stableParams.gamma2,
-          liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-          daoFee: poolPairInfo.fees.dao,
-          minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-          minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-          priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-        };
-        priceImpact = calculateStableSwapPriceImpactInputToken1(b);
-      } else {
-        throw Error('stableswap parameter error');
-      }
-    } // An XYK Pool
-    else if (inputTokenId === poolPairInfo.token1Id) {
-      otherTokenAmount = calculateXYKToken0AmountFromToken1Amount({
-        token0LiquidityAmount: token0AmountInDenom,
-        token1LiquidityAmount: token1AmountInDenom,
-        token1OutputAmount: quoteInputAmount,
-        fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-      }),
-        priceImpact = calculateXYKPriceImpactFromToken0Amount({
-          token0LiquidityAmount: token0AmountInDenom,
-          token1LiquidityAmount: token1AmountInDenom,
-          token0InputAmount: otherTokenAmount,
-        });
-    } else if (inputTokenId === poolPairInfo.token0Id)
-      otherTokenAmount = calculateXYKToken1AmountFromToken0Amount({
-        token0LiquidityAmount: token0AmountInDenom,
-        token1LiquidityAmount: token1AmountInDenom,
-        token0OutputAmount: quoteInputAmount,
-        fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-      }),
-        priceImpact = calculateXYKPriceImpactFromToken1Amount({
-          token0LiquidityAmount: token0AmountInDenom,
-          token1LiquidityAmount: token1AmountInDenom,
-          token1InputAmount: otherTokenAmount,
-        });
-    else
-      throw Error('constant product rule swap parameter error');
-    return {
-      inputTokenId: u,
-      quoteInputAmount: otherTokenAmount,
-      quoteShadeDaoFee: quoteShadeDaoFee.plus(poolPairInfo.fees.dao),
-      quoteLPFee: quoteLpFee.plus(poolPairInfo.fees.liquidityProvider),
-      quotePriceImpact: quotePriceImpact.plus(priceImpact),
-      hops: numOfHops,
-    };
-  }, {
-    inputTokenId: endingTokenId,
-    quoteInputAmount: endingTokenAmount,
-    quoteShadeDaoFee: math(0),
-    quoteLPFee: math(0),
-    quotePriceImpact: math(0),
-    hops: [],
-  });
-  return {
-    inputAmount: inputAmount,
-    quoteOutputAmount: endingTokenAmount,
-    quoteShadeDaoFee: quoteShadeDaoFee,
-    quoteLPFee: quoteLpFee,
-    priceImpact: priceImpact,
-    sourceTokenId: sourceTokenId,
-    targetTokenId: endingTokenId,
-    route: hopsButAlsoRouteUnclear,
-  };
-}
-
 export function printShadeSwapRoute(route: ShadeSwapRoute) {
   console.dir({
     inputAmount: route.inputAmount.toString(),
@@ -612,7 +321,7 @@ export function printShadeSwapRoute(route: ShadeSwapRoute) {
   }, { depth: 5 });
 }
 
-interface ShadeSwapRoute {
+export interface ShadeSwapRoute {
   inputAmount: BigNumber;
   quoteOutputAmount: BigNumber;
   quoteShadeDaoFee: BigNumber;
@@ -623,81 +332,7 @@ interface ShadeSwapRoute {
   route: ShadeRoutePool[];
 }
 
-export function calculateBestShadeSwapRoutes({
-                                               inputTokenAmount: tokenAmount,
-                                               startingTokenId: startingTokenId,
-                                               endingTokenId: endingTokenId,
-                                               maxHops: maxHops,
-                                               isReverse: h = !1,
-                                               pools,
-                                             }: {
-  inputTokenAmount: Amount,
-  startingTokenId: string,
-  endingTokenId: string,
-  maxHops: number,
-  pools: PoolId[],
-  isReverse: boolean,
-}): ShadeSwapRoute[] {
-  const store = TheStore();
-  const poolsMap = pools?.length ? _.pick(store.pools, pools) : store.pools;// || (pools ? _.zipObject(_.map(pools, 'id'), pools) : store.pools);
-  const rawPaths = findShadePaths({
-    startingTokenId: startingTokenId,
-    endingTokenId: endingTokenId,
-    maxHops: maxHops,
-    pools: poolsMap,
-  });
-  if (rawPaths.length === 0) {
-    return [];
-  }
-  if (!h) {
-    return rawPaths
-      .reduce((agg, currentPath) => {
-        try {
-          const pathCalculation = calculatePathOutcome({
-            startingTokenAmount: tokenAmount,
-            startingTokenId: startingTokenId,
-            path: currentPath,
-          });
-          return agg.push(pathCalculation),
-            agg;
-        } catch (err) {
-          console.error(err);
-          return agg;
-        }
-      }, [])
-      .sort((d, _) => d.quoteOutputAmount.isGreaterThan(_.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(_.quoteOutputAmount) ? 1 : 0);
-  } else {
-    const $ = rawPaths.reduce((d, _) => {
-        try {
-          const D = calculatePathQuotaByEnding({
-            endingTokenAmount: tokenAmount,
-            endingTokenId: endingTokenId,
-            path: _,
-          });
-          return d.push(D),
-            d;
-        } catch (err) {
-          console.error(err);
-          debugger;
-          return d;
-        }
-      }
-      , []);
-    if ($.length === 0) {
-      return [];
-    }
-    const F = $.reduce((d, _) => d.inputAmount.isLessThan(_.inputAmount) ? d : _, $[0])
-      , P = F.inputAmount;
-    return rawPaths.map(path => calculatePathOutcome({
-      startingTokenAmount: P,
-      startingTokenId: startingTokenId,
-      path: path,
-    })).map(d => JSON.stringify(d.route) === JSON.stringify(F.route) ? F : d)
-      .sort((d, _) => JSON.stringify(d.route) === JSON.stringify(F.route) ? -1 : JSON.stringify(_.route) === JSON.stringify(F.route) ? 1 : d.quoteOutputAmount.isGreaterThan(_.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(_.quoteOutputAmount) ? 1 : 0);
-  }
-}
-
-function stableSwapToken0ToToken1InPool(stablePoolParams: { inputToken0Amount: BigNumber; poolToken0Amount: BigNumber; poolToken1Amount: BigNumber; priceRatio: BigNumber; a: any; gamma1: any; gamma2: any; liquidityProviderFee: any; daoFee: any; minTradeSizeToken0For1: any; minTradeSizeToken1For0: any; priceImpactLimit: any; }) {
+export function stableSwapToken0ToToken1InPool(stablePoolParams: { inputToken0Amount: BigNumber; poolToken0Amount: BigNumber; poolToken1Amount: BigNumber; priceRatio: BigNumber; a: any; gamma1: any; gamma2: any; liquidityProviderFee: any; daoFee: any; minTradeSizeToken0For1: any; minTradeSizeToken1For0: any; priceImpactLimit: any; }) {
   const {
     inputToken0Amount: i,
     poolToken0Amount: e,
@@ -723,20 +358,20 @@ function stableSwapToken0ToToken1InPool(stablePoolParams: { inputToken0Amount: B
 }
 
 /** PriceImpact */
-function calculateStableSwapPriceImpactInputToken0({
-                                                     inputToken0Amount: i,
-                                                     poolToken0Amount: e,
-                                                     poolToken1Amount: t,
-                                                     priceRatio: n,
-                                                     a: o,
-                                                     gamma1: s,
-                                                     gamma2: a,
-                                                     liquidityProviderFee: r,
-                                                     daoFee: l,
-                                                     minTradeSizeToken0For1: d,
-                                                     minTradeSizeToken1For0: u,
-                                                     priceImpactLimit: p,
-                                                   }): any {
+export function calculateStableSwapPriceImpactInputToken0({
+                                                            inputToken0Amount: i,
+                                                            poolToken0Amount: e,
+                                                            poolToken1Amount: t,
+                                                            priceRatio: n,
+                                                            a: o,
+                                                            gamma1: s,
+                                                            gamma2: a,
+                                                            liquidityProviderFee: r,
+                                                            daoFee: l,
+                                                            minTradeSizeToken0For1: d,
+                                                            minTradeSizeToken1For0: u,
+                                                            priceImpactLimit: p,
+                                                          }): any {
   function m() {
     return BigNumber.set({
       DECIMAL_PLACES: 30,
@@ -746,24 +381,24 @@ function calculateStableSwapPriceImpactInputToken0({
 
   const h = m()
     , f = h.priceToken1()
-    , g = h.swapToken0WithToken1(i).dividedBy(math(1).minus(r.plus(l)));
+    , g = h.swapToken0WithToken1(i).dividedBy(BigNumber(1).minus(r.plus(l)));
   return i.dividedBy(g).dividedBy(f).minus(1);
 }
 
-function stableSwapToken1ToToken0InPool({
-                                          inputToken1Amount: i,
-                                          poolToken0Amount: e,
-                                          poolToken1Amount: t,
-                                          priceRatio: n,
-                                          a: o,
-                                          gamma1: s,
-                                          gamma2: a,
-                                          liquidityProviderFee: r,
-                                          daoFee: l,
-                                          minTradeSizeToken0For1: d,
-                                          minTradeSizeToken1For0: u,
-                                          priceImpactLimit: p,
-                                        }) {
+export function stableSwapToken1ToToken0InPool({
+                                                 inputToken1Amount: i,
+                                                 poolToken0Amount: e,
+                                                 poolToken1Amount: t,
+                                                 priceRatio: n,
+                                                 a: o,
+                                                 gamma1: s,
+                                                 gamma2: a,
+                                                 liquidityProviderFee: r,
+                                                 daoFee: l,
+                                                 minTradeSizeToken0For1: d,
+                                                 minTradeSizeToken1For0: u,
+                                                 priceImpactLimit: p,
+                                               }) {
   function m() {
     return BigNumber.set({
       DECIMAL_PLACES: 30,
@@ -774,20 +409,20 @@ function stableSwapToken1ToToken0InPool({
   return m().swapToken1WithToken0(i);
 }
 
-function calculateStableSwapPriceImpactInputToken1({
-                                                     inputToken1Amount: i,
-                                                     poolToken0Amount: e,
-                                                     poolToken1Amount: t,
-                                                     priceRatio: n,
-                                                     a: o,
-                                                     gamma1: s,
-                                                     gamma2: a,
-                                                     liquidityProviderFee: r,
-                                                     daoFee: l,
-                                                     minTradeSizeToken0For1: d,
-                                                     minTradeSizeToken1For0: u,
-                                                     priceImpactLimit: p,
-                                                   }) {
+export function calculateStableSwapPriceImpactInputToken1({
+                                                            inputToken1Amount: i,
+                                                            poolToken0Amount: e,
+                                                            poolToken1Amount: t,
+                                                            priceRatio: n,
+                                                            a: o,
+                                                            gamma1: s,
+                                                            gamma2: a,
+                                                            liquidityProviderFee: r,
+                                                            daoFee: l,
+                                                            minTradeSizeToken0For1: d,
+                                                            minTradeSizeToken1For0: u,
+                                                            priceImpactLimit: p,
+                                                          }) {
   function m() {
     return BigNumber.set({
       DECIMAL_PLACES: 30,
@@ -797,21 +432,21 @@ function calculateStableSwapPriceImpactInputToken1({
 
   const h = m()
     , f = h.priceToken0()
-    , g = h.swapToken1WithToken0(i).dividedBy(math(1).minus(r.plus(l)));
+    , g = h.swapToken1WithToken0(i).dividedBy(BigNumber(1).minus(r.plus(l)));
   return i.dividedBy(g).dividedBy(f).minus(1);
 }
 
-function Fo({ token0LiquidityAmount: i, token1LiquidityAmount: e, token0InputAmount: t, fee: n }) {
+export function Fo({ token0LiquidityAmount: i, token1LiquidityAmount: e, token0InputAmount: t, fee: n }) {
   const o = e.minus(i.multipliedBy(e).dividedBy(i.plus(t)))
     , s = o.minus(o.multipliedBy(n));
-  return math(s.toFixed(0));
+  return BigNumber(s.toFixed(0));
 }
 
-function calculateXYKPriceImpactFromToken0Amount({
-                                                   token0LiquidityAmount: i,
-                                                   token1LiquidityAmount: e,
-                                                   token0InputAmount: t,
-                                                 }) {
+export function calculateXYKPriceImpactFromToken0Amount({
+                                                          token0LiquidityAmount: i,
+                                                          token1LiquidityAmount: e,
+                                                          token0InputAmount: t,
+                                                        }) {
   const n = i.dividedBy(e)
     , o = i.multipliedBy(e)
     , s = i.plus(t)
@@ -820,17 +455,17 @@ function calculateXYKPriceImpactFromToken0Amount({
   return t.dividedBy(r).dividedBy(n).minus(1);
 }
 
-function Ro({ token0LiquidityAmount: i, token1LiquidityAmount: e, token1InputAmount: t, fee: n }) {
+export function Ro({ token0LiquidityAmount: i, token1LiquidityAmount: e, token1InputAmount: t, fee: n }) {
   const o = i.minus(i.multipliedBy(e).dividedBy(e.plus(t)))
     , s = o.minus(o.multipliedBy(n));
-  return math(s.toFixed(0));
+  return BigNumber(s.toFixed(0));
 }
 
-function calculateXYKPriceImpactFromToken1Amount({
-                                                   token0LiquidityAmount: i,
-                                                   token1LiquidityAmount: e,
-                                                   token1InputAmount: t,
-                                                 }) {
+export function calculateXYKPriceImpactFromToken1Amount({
+                                                          token0LiquidityAmount: i,
+                                                          token1LiquidityAmount: e,
+                                                          token1InputAmount: t,
+                                                        }) {
   const n = e.dividedBy(i)
     , o = e.multipliedBy(i)
     , s = e.plus(t)
@@ -839,20 +474,20 @@ function calculateXYKPriceImpactFromToken1Amount({
   return t.dividedBy(r).dividedBy(n).minus(1);
 }
 
-function getTradeInputOfSimulateReverseToken0WithToken1Trade({
-                                                               outputToken1Amount: i,
-                                                               poolToken0Amount: e,
-                                                               poolToken1Amount: t,
-                                                               priceRatio: n,
-                                                               a: o,
-                                                               gamma1: s,
-                                                               gamma2: a,
-                                                               liquidityProviderFee: r,
-                                                               daoFee: l,
-                                                               minTradeSizeToken0For1: d,
-                                                               minTradeSizeToken1For0: u,
-                                                               priceImpactLimit: p,
-                                                             }) {
+export function getTradeInputOfSimulateReverseToken0WithToken1Trade({
+                                                                      outputToken1Amount: i,
+                                                                      poolToken0Amount: e,
+                                                                      poolToken1Amount: t,
+                                                                      priceRatio: n,
+                                                                      a: o,
+                                                                      gamma1: s,
+                                                                      gamma2: a,
+                                                                      liquidityProviderFee: r,
+                                                                      daoFee: l,
+                                                                      minTradeSizeToken0For1: d,
+                                                                      minTradeSizeToken1For0: u,
+                                                                      priceImpactLimit: p,
+                                                                    }) {
   function m() {
     return BigNumber.set({
       DECIMAL_PLACES: 30,
@@ -861,24 +496,24 @@ function getTradeInputOfSimulateReverseToken0WithToken1Trade({
   }
 
   const h = r.plus(l)
-    , f = i.dividedBy(math(1).minus(h));
+    , f = i.dividedBy(BigNumber(1).minus(h));
   return m().simulateReverseToken0WithToken1Trade(f).tradeInput;
 }
 
-function getTradeInputOfSimulateReverseToken1WithToken0Trade({
-                                                               outputToken0Amount: i,
-                                                               poolToken0Amount: e,
-                                                               poolToken1Amount: t,
-                                                               priceRatio: n,
-                                                               a: o,
-                                                               gamma1: s,
-                                                               gamma2: a,
-                                                               liquidityProviderFee: r,
-                                                               daoFee: l,
-                                                               minTradeSizeToken0For1: d,
-                                                               minTradeSizeToken1For0: u,
-                                                               priceImpactLimit: p,
-                                                             }) {
+export function getTradeInputOfSimulateReverseToken1WithToken0Trade({
+                                                                      outputToken0Amount: i,
+                                                                      poolToken0Amount: e,
+                                                                      poolToken1Amount: t,
+                                                                      priceRatio: n,
+                                                                      a: o,
+                                                                      gamma1: s,
+                                                                      gamma2: a,
+                                                                      liquidityProviderFee: r,
+                                                                      daoFee: l,
+                                                                      minTradeSizeToken0For1: d,
+                                                                      minTradeSizeToken1For0: u,
+                                                                      priceImpactLimit: p,
+                                                                    }) {
   function m() {
     return BigNumber.set({
       DECIMAL_PLACES: 30,
@@ -887,35 +522,35 @@ function getTradeInputOfSimulateReverseToken1WithToken0Trade({
   }
 
   const h = r.plus(l)
-    , f = i.dividedBy(math(1).minus(h));
+    , f = i.dividedBy(BigNumber(1).minus(h));
   return m().simulateReverseToken1WithToken0Trade(f).tradeInput;
 }
 
-function calculateXYKToken0AmountFromToken1Amount({
-                                                    token0LiquidityAmount: i,
-                                                    token1LiquidityAmount: e,
-                                                    token1OutputAmount: t,
-                                                    fee: n,
-                                                  }) {
+export function calculateXYKToken0AmountFromToken1Amount({
+                                                           token0LiquidityAmount: i,
+                                                           token1LiquidityAmount: e,
+                                                           token1OutputAmount: t,
+                                                           fee: n,
+                                                         }) {
   if (t.isGreaterThanOrEqualTo(e))
     throw Error('Not enough liquidity for swap');
-  const o = i.multipliedBy(e).dividedBy(t.dividedBy(math(1).minus(n)).minus(e)).plus(i).multipliedBy(-1);
-  return math(o.toFixed(0));
+  const o = i.multipliedBy(e).dividedBy(t.dividedBy(BigNumber(1).minus(n)).minus(e)).plus(i).multipliedBy(-1);
+  return BigNumber(o.toFixed(0));
 }
 
-function calculateXYKToken1AmountFromToken0Amount({
-                                                    token0LiquidityAmount: i,
-                                                    token1LiquidityAmount: e,
-                                                    token0OutputAmount: t,
-                                                    fee: n,
-                                                  }) {
+export function calculateXYKToken1AmountFromToken0Amount({
+                                                           token0LiquidityAmount: i,
+                                                           token1LiquidityAmount: e,
+                                                           token0OutputAmount: t,
+                                                           fee: n,
+                                                         }) {
   if (t.isGreaterThanOrEqualTo(i))
     throw Error('Not enough liquidity for swap');
-  const o = e.multipliedBy(i).dividedBy(t.dividedBy(math(1).minus(n)).minus(i)).plus(e).multipliedBy(-1);
-  return math(o.toFixed(0));
+  const o = e.multipliedBy(i).dividedBy(t.dividedBy(BigNumber(1).minus(n)).minus(i)).plus(e).multipliedBy(-1);
+  return BigNumber(o.toFixed(0));
 }
 
-function validateTradeSize(i, e) {
+export function validateTradeSize(i, e) {
   if (i.isLessThanOrEqualTo(0))
     throw Error('Trade size must be positive');
   if (i.isLessThanOrEqualTo(e))
@@ -923,7 +558,7 @@ function validateTradeSize(i, e) {
 }
 
 function S(i, e, t, n, o, s, a) {
-  const r = math(1e-16)
+  const r = BigNumber(1e-16)
     , l = 80
     , d = 150;
   try {
@@ -954,7 +589,7 @@ function A(i, e, t, n, o) {
   let r = t.minus(e)
     , l = e;
   for (let d = 0; d < o; d += 1) {
-    r = r.multipliedBy(math(.5));
+    r = r.multipliedBy(BigNumber(.5));
     const u = l.plus(r)
       , p = i(u);
     if (s.multipliedBy(p).isGreaterThanOrEqualTo(0) && (l = u),
