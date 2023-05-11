@@ -1,6 +1,6 @@
 import { Int } from '@keplr-wallet/unit';
-import { CoinAmount } from '../types/dex-types';
 import { getPairRouter } from './osmosis-rest';
+import bigInteger from 'big-integer';
 
 export function calculateBestOsmosisSwapRoute({
                                                 tokenInDenom,
@@ -8,7 +8,7 @@ export function calculateBestOsmosisSwapRoute({
                                                 tokenOutDenom,
                                               }: {
   tokenInDenom: string,
-  tokenInAmount: CoinAmount,
+  tokenInAmount: bigInteger.BigInteger,
   tokenOutDenom: string
 }) {
   const int = tokenInAmount.toString();

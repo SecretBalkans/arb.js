@@ -5,7 +5,7 @@ import { ArbWallet } from '../../wallet/ArbWallet';
 import { convertCoinFromUDenomV2 } from '../../utils';
 import config from "../../config";
 import https from 'https';
-import { Contract, PoolToken, SecretContractAddress, Snip20Token, StakingContract, TokenPriceInfo } from './types';
+import { Contract, SnipPoolToken, SecretContractAddress, Snip20Token, StakingContract, TokenPriceInfo } from './types';
 import { Amount } from '../types/dex-types';
 import BigNumber from 'bignumber.js';
 
@@ -40,8 +40,8 @@ export class ShadePair {
   public readonly name: string;
 
   constructor(
-    public readonly token0: PoolToken,
-    public readonly token1: PoolToken,
+    public readonly token0: SnipPoolToken,
+    public readonly token1: SnipPoolToken,
     public readonly lpTokenInfo?: Snip20Token,
     public readonly rawInfo?: TokenPairInfoRaw,
     public readonly stakingContract?: Contract | StakingContract) {
@@ -285,7 +285,23 @@ export function parsePoolsRaw(e: TokenPairInfoRaw[]): { [p: string]: { stakingCo
     }, {});
 }
 
-function parseRawPool(e): { stakingContract: any; fees: any; token0Id: any; contract: any; token1Id: any; flags: any; token0Amount: Amount; rewardTokens: any; stableParams: any; id: any; lpTokenId: any; metrics: { volume: any; liquidity: Amount; currency: any; apy: any }; token1Amount: Amount } {
+export interface ShadeRoutePool {
+  stakingContract: any;
+  fees: any;
+  token0Id: any;
+  contract: any;
+  token1Id: any;
+  flags: any;
+  token0Amount: Amount;
+  rewardTokens: any;
+  stableParams: any;
+  id: any;
+  lpTokenId: any;
+  metrics: { volume: any; liquidity: Amount; currency: any; apy: any };
+  token1Amount: Amount;
+}
+
+function parseRawPool(e): ShadeRoutePool {
   const t = useTokens()
     , {getTokenDecimals: getTokenDecimals} = t
     , {id: o, contract: u, stakingContract: l, rewardTokens: k, lpTokenId: O, token0Id: v, token0AmountRaw: _, token1Id: d, token1AmountRaw: g, fees: m, stableParams: y, flags: b, metrics: C} = e

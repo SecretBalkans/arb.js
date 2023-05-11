@@ -2,8 +2,8 @@ import { ArbitrageMonitor, DexStore } from './arbitrage/dexArbitrage';
 import { SwapToken } from './dex/types/dex-types';
 import OsmosisSwap from './dex/osmosis/osmosisSwap';
 import ShadeSwap from './dex/shade/shadeSwap';
-import _ from 'lodash';
 import { Logger } from './utils';
+import ArbMonitorUploader from './monitor/arb-upload';
 const logger = new Logger('ArbM');
 (async () => {
   const dexStore = new DexStore([
@@ -36,11 +36,13 @@ const logger = new Logger('ArbM');
     // [SwapToken.stLUNA, SwapToken.LUNA],
   ]);
 
-  arbitrage.subscribeArbs().subscribe({
-    next(arbPaths) {
-      logger.log(_.sortBy(arbPaths, 'winPercentage').reverse().map(ap=> ap?.toString()));
-    },
-  });
+  // arbitrage.subscribeArbs().subscribe({
+  //   next(arbPaths) {
+  //     logger.log(_.sortBy(arbPaths, 'winPercentage').reverse().map(ap=> ap?.toString()));
+  //   },
+  // });
+
+  const arbUploader = new ArbMonitorUploader(arbitrage)
   /*
   while (true) {
     console.time('cycle');

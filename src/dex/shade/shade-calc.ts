@@ -1,7 +1,7 @@
 // noinspection CommaExpressionJS
 
 import BigNumber from 'bignumber.js';
-import { TheStore, useTokens } from './shade-rest';
+import { ShadeRoutePool, TheStore, useTokens } from './shade-rest';
 import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../../utils';
 import { Amount, PoolId } from '../types/dex-types';
 import _ from 'lodash';
@@ -426,7 +426,7 @@ function calculatePathOutcome({
     quoteShadeDaoFee: P,
     quoteLPFee: I,
     quotePriceImpact: d,
-    hops: _,
+    hops: rt,
   } = pathReduceResult;
   return {
     inputAmount: startingTokenAmount,
@@ -436,7 +436,7 @@ function calculatePathOutcome({
     priceImpact: d,
     sourceTokenId: startingTokenId,
     targetTokenId: $,
-    route: _,
+    route: rt,
   };
 }
 
@@ -620,7 +620,7 @@ interface ShadeSwapRoute {
   priceImpact: BigNumber;
   sourceTokenId: string;
   targetTokenId: string;
-  route: any[];
+  route: ShadeRoutePool[];
 }
 
 export function calculateBestShadeSwapRoutes({

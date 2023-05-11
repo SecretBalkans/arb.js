@@ -4,19 +4,19 @@ import {
   DexProtocolName,
   IPool,
   IRoute,
-  PoolId,
+  PoolId, PoolToken,
   SwapToken,
   SwapTokenMap,
   Token,
 } from '../types/dex-types';
-import { getShadeTokenBySymbol, toTokenId } from './tokens';
+import { extractShadeTokenSymbolById, getShadeTokenBySymbol, toTokenId } from './tokens';
 import { calculateBestShadeSwapRoutes, findShadePaths } from './shade-calc';
 import { convertCoinFromUDenomV2 } from '../../utils';
 import { Observable } from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
 import { getShadePairs, ShadePair, TheStore } from './shade-rest';
-import bigInteger from 'big-integer';
 import _ from 'lodash';
+import BigNumber from 'bignumber.js';
 
 export default class ShadeSwap extends DexProtocol<ShadePair> {
   public name = 'shade' as DexProtocolName;
@@ -26,7 +26,8 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
     super();
   }
 
-  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: ShadePair[]): { route: IRoute<ShadePair>; amountOut: Amount } | null {
+  public override
+  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: ShadePair[]): { route: IRoute<ShadePair>; amountOut: Amount } | null {
     const startingToken = getShadeTokenBySymbol(tokenInId);
     const endingToken = getShadeTokenBySymbol(tokenOutId);
     const [route] = calculateBestShadeSwapRoutes({
@@ -39,11 +40,19 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       //  we need to split big routes into two smaller ones and execute it into
       //  two messages and thus support bigger (7-8-more?) routes
       //  as they can often give better arb
-      pools: _.map(poolsHint, p=> (p.rawInfo?.id || p['id']) as PoolId)
+      pools: _.map(poolsHint, p=> (p?.rawInfo?.id || p['poolId'] || p['id']) as PoolId)
     });
     return route ? {
       route: route.route.map(r => ({
-        pool: r,
+        pool: {
+          poolId: r.id,
+          token1Id: extractShadeTokenSymbolById(r.token0Id) as PoolToken,
+          token0Id: extractShadeTokenSymbolById(r.token1Id) as PoolToken,
+          token0Amount: r.token0Amount,
+          token1Amount: r.token1Amount,
+          dex: 'shade',
+          internalPool: null // TODO: shade internal pool info
+        },
       })),
       amountOut: convertCoinFromUDenomV2(route.quoteOutputAmount, endingToken.decimals),
     } : null;
@@ -57,9 +66,9 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
             poolId: sp.name as PoolId,
             dex: 'shade' as DexProtocolName,
             token0Id: toTokenId(sp.token0),
-            token0Amount: bigInteger(sp.token0.amount),
+            token0Amount: BigNumber(sp.token0.amount),
             token1Id: toTokenId(sp.token1),
-            token1Amount: bigInteger(sp.token1.amount),
+            token1Amount: BigNumber(sp.token1.amount),
             internalPool: sp,
           }));
           this.pools = latestPools;

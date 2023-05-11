@@ -1,4 +1,4 @@
-import fetch from "node-fetch";
+import fetch from 'node-fetch';
 
 export async function fetchTimeout(url, options = {}, timeout = 25000) {
   if (!url || url.startsWith('undefined')) {
@@ -6,16 +6,18 @@ export async function fetchTimeout(url, options = {}, timeout = 25000) {
   }
   let resolved = false;
   const response = await Promise.race([
-    fetch(url, { ...options }).then((result) => !resolved && (resolved = true) && result).catch(err => {console.error(err, url);
+    fetch(url, { ...options }).then((result) => !resolved && (resolved = true) && result).catch(err => {
+      console.error(err, url);
     }),
     new Promise((_, reject) =>
       setTimeout(() => !resolved && (resolved = true) && reject(new Error(`url timeout - ${url}`)), timeout),
     ),
   ]);
-  const text = await (response as any).text();
+  let text;
   try {
+    text = await (response as any).text();
     return JSON.parse(text);
   } catch (err) {
-    return text;
+    throw text ? new Error(text) : err;
   }
 }

@@ -19,6 +19,7 @@ import createCosmosObserver from '../utils/cosmosObserver';
 import { Pool } from '../../lib/@osmosis/packages/pools/src';
 import bigInteger from 'big-integer';
 import _ from 'lodash';
+import BigNumber from 'bignumber.js';
 
 const logger = new Logger('OsmosisSwap');
 export default class OsmosisSwap extends DexProtocol<Pool> {
@@ -33,15 +34,27 @@ export default class OsmosisSwap extends DexProtocol<Pool> {
     const { denom: tokenInDenomOsmo, decimals: tokenInOsmoDecimals } = getTokenDenom(tokenInId);
     const { denom: tokenOutDenomOsmo, decimals: tokenOutOsmoDecimals } = getTokenDenom(tokenOutId);
 
+    const tokenInAmount = bigInteger(amountIn.multipliedBy(10 ** tokenInOsmoDecimals).toFixed(0));
     const [osmo] = calculateBestOsmosisSwapRoute({
-      tokenInAmount: bigInteger(amountIn.multipliedBy(10 ** tokenInOsmoDecimals).toFixed(0)),
+      tokenInAmount: tokenInAmount,
       tokenOutDenom: tokenOutDenomOsmo,
       tokenInDenom: tokenInDenomOsmo,
     });
 
+    const amountOut = convertCoinFromUDenomV2(osmo?.out?.toString(), tokenOutOsmoDecimals);
     return {
-      amountOut: convertCoinFromUDenomV2(osmo.out.toString(), tokenOutOsmoDecimals),
-      route: osmo.pools.map(pool => ({ pool })),
+      amountOut: amountOut,
+      route: osmo?.pools?.map(pool => ({
+        pool: {
+          poolId: pool.id as PoolId,
+          token0Amount: BigNumber(0),
+          token1Amount: BigNumber(0), // TODO: calculate token amounts in internal routes maybe ?
+          internalPool: pool,
+          dex: 'osmosis',
+          token0Id: toTokenId(tokenInDenomOsmo),
+          token1Id: toTokenId(tokenOutDenomOsmo),
+        },
+      })),
     };
   }
 
@@ -53,9 +66,9 @@ export default class OsmosisSwap extends DexProtocol<Pool> {
             poolId: op.id as PoolId,
             dex: 'osmosis' as DexProtocolName,
             token0Id: toTokenId(op.poolAssets[0].denom as Denom, op.id, 0),
-            token0Amount: bigInteger(op.poolAssets[0].amount.toString()),
+            token0Amount: BigNumber(op.poolAssets[0].amount.toString()),
             token1Id: toTokenId(op.poolAssets[1].denom as Denom, op.id, 1),
-            token1Amount: bigInteger(op.poolAssets[1].amount.toString()),
+            token1Amount: BigNumber(op.poolAssets[1].amount.toString()),
             internalPool: op,
           }));
           this.pools = latestOsmoPools;

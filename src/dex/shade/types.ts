@@ -11,7 +11,7 @@ export interface Contract {
   'code_hash': string;
 }
 
-export interface PoolToken extends Snip20Token {
+export interface SnipPoolToken extends Snip20Token {
   amount?: number;
   price?: number;
 }

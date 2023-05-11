@@ -1,12 +1,12 @@
 import { SwapTokenMap, Token } from '../types/dex-types';
-import { PoolToken } from './types';
+import { SnipPoolToken } from './types';
 import _ from 'lodash';
 import { Logger } from '../../utils';
 import { tokens, pairs } from './shade-rest';
 
 const logger = new Logger('ShadeTokens');
 
-export function toTokenId(shadeToken: PoolToken): Token {
+export function toTokenId(shadeToken: SnipPoolToken): Token {
   const symbol = shadeToken.symbol;
   // Hack: easy hack the shadeToken.symbol to match our internal SwapTokenMap
   const token = { SSCRT: SwapTokenMap.SCRT }[symbol] || SwapTokenMap[_.trimStart(symbol.replace('st', '_st$'), 'as').replace('-', '').replace('_st$', 'st')];
@@ -17,11 +17,40 @@ export function toTokenId(shadeToken: PoolToken): Token {
   }
 }
 
+export function getShadeTokenById(id: string) {
+  const token = _.find(tokens, (token) => {
+    return token.id === id
+      &&
+      // Check that it is used in the shade pairs
+      !!_.find(pairs, (d) => [d.token_0, d.token_1].includes(id));
+  });
+  if (!token) {
+    throw new Error(`No Shade token wih id=${id} found in token & pairs registry. Fix search probably`);
+  }
+  return token;
+
+}
+export function extractShadeTokenSymbolById(id: string) {
+  const token = _.find(tokens, (token) => {
+    return token.id === id
+      &&
+      // Check that it is used in the shade pairs
+      !!_.find(pairs, (d) => [d.token_0, d.token_1].includes(id));
+  });
+  if (!token) {
+    throw new Error(`No Shade token wih id=${id} found in token & pairs registry. Fix search probably`);
+  }
+  return extractShadeTokenSymbol(token);
+
+}
+
+function extractShadeTokenSymbol(shadeToken) {
+  return _.trimStart(shadeToken.symbol.replace('st', '_st$'), 'as').replace('.axl','').replace('-', '').replace('_st$', 'st');
+}
 
 export function getShadeTokenBySymbol(symbol: Token): { id: string, symbol: string, decimals: number } {
   const token = _.find(tokens, (shadeToken) => {
-      return (_.trimStart(shadeToken.symbol, 's') === symbol
-          || _.replace(shadeToken.symbol, '.axl', '') === symbol)
+      return extractShadeTokenSymbol(shadeToken) === symbol
         &&
         // Check that it is used in the shade pairs
         !!_.find(pairs, (d) => [d.token_0, d.token_1].includes(shadeToken.id));

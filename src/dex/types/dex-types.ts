@@ -2,11 +2,10 @@ import { Observable } from 'rxjs';
 import { Brand } from '../../ts';
 import { Pool } from '../../lib/@osmosis/packages/pools/src';
 import { ShadePair } from '../shade';
-import bigInteger from 'big-integer';
 import BigNumber from 'bignumber.js';
 
 export type Amount = BigNumber;
-export type CoinAmount = bigInteger.BigInteger;
+export type CoinAmount = BigNumber;
 
 export type Token = Brand<string, 'Token'>;
 export type Denom = Brand<string, 'Denom'>;
@@ -86,7 +85,7 @@ export interface IPool<T> {
 export type DexProtocolName = 'osmosis' | 'shade';
 
 export interface IRouteSegment<T extends DexPool> {
-  pool: T;
+  pool: IPool<T>;
 }
 
 export interface ICalculatedRouteSegment<T extends DexPool> extends IRouteSegment<T> {

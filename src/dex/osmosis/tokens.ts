@@ -75,7 +75,7 @@ ChainInfos.forEach(chInfo => {
   });
 });
 
-export function toTokenId(osmoDenom: Denom, pid, poolTokenId): Token | NonArbedToken {
+export function toTokenId(osmoDenom: Denom, pid?, poolTokenId?): Token | NonArbedToken {
   if (denomsToCoinInfo[osmoDenom]) {
     return denomsToCoinInfo[osmoDenom].token;
   } else {
