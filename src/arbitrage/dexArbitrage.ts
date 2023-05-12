@@ -150,7 +150,7 @@ export class ArbitrageMonitor {
       amountOut: interAmount,
       route: route0,
       internalSwapError: error0,
-    } = dexProtocol0.calcSwap(amount, swapPair, routesHints?.route0.map(r => r.pool));
+    } = dexProtocol0.calcSwap(amount, swapPair, routesHints?.route0?.map(r => r.pool));
     if (error0) {
       return new ArbPath<T, K, B>({
         error0,
@@ -163,7 +163,7 @@ export class ArbitrageMonitor {
       amountOut,
       route: route1,
       internalSwapError: error1,
-    } = dexProtocol1.calcSwap(interAmount, reversePair(swapPair), routesHints?.route1.map(r => r.pool));
+    } = dexProtocol1.calcSwap(interAmount, reversePair(swapPair), routesHints?.route1?.map(r => r.pool));
     return new ArbPath<T, K, B>({
       error0,
       error1,
@@ -230,23 +230,23 @@ export class ArbitrageMonitor {
           const poolsMap = dex1.getPoolsMap(this.pairs);
           d1poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
         }
-        const pairs = this.pairs.filter(pair => {
+        const changedPairs = this.pairs.filter(pair => {
           return isInitial || _.find(dexProtocols[0].pools, pool =>
               d0poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
             || _.find(dexProtocols[1].pools, pool =>
               d1poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0);
         });
-        const result = _.map(pairs, pair => {
-          console.time(pair.join('-'));
-          const baseAmount = this.getCurrentCapacity({ pair, dex0, dex1 });
+        const result = _.map(changedPairs, changedPair => {
+          console.time(changedPair.join('-'));
+          const baseAmount = this.getCurrentCapacity({ pair: changedPair, dex0, dex1 });
           const arbPath = _.maxBy([
             // TODO: generate dex pairs based on store.subscriptions to support more dexs
-            this.calcDexArbOut(baseAmount, pair, dex0, dex1),
-            this.calcDexArbOut(baseAmount, pair, dex1, dex0),
-            this.calcDexArbOut(baseAmount, reversePair(pair), dex0, dex1),
-            this.calcDexArbOut(baseAmount, reversePair(pair), dex1, dex0),
+            this.calcDexArbOut(baseAmount, changedPair, dex0, dex1),
+            this.calcDexArbOut(baseAmount, changedPair, dex1, dex0),
+            this.calcDexArbOut(baseAmount, reversePair(changedPair), dex0, dex1),
+            this.calcDexArbOut(baseAmount, reversePair(changedPair), dex1, dex0),
           ], d => d.amountOut?.minus(d.amountIn).dividedBy(d.amountIn).toNumber() || 0);
-          console.timeEnd(pair.join('-'));
+          console.timeEnd(changedPair.join('-'));
           return arbPath;
         }).map((arbPath: ArbPath<DexPool, DexPool, any>) => {
           if (arbPath.amountOut?.isGreaterThan(arbPath.amountIn)) {

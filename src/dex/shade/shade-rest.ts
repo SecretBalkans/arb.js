@@ -76,8 +76,8 @@ export class ShadePair {
 export async function getShadePairs(): Promise<ShadePair[]> {
   const prices = await getTokenPrices();
   const pairs = await getPairsRaw();
-  return Aigle.mapLimit(pairs, 6, async pr => {
-    return await getTokenPairInfo(pr, prices);
+  return Aigle.mapLimit(pairs, pairs.length, async cachePairInfo => {
+    return await getTokenPairInfo(cachePairInfo, prices);
   });
 }
 
@@ -192,6 +192,11 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
   }>(rawInfo.contract.address as SecretContractAddress, { 'get_pair_info': {} }, rawInfo.contract.code_hash)
   const price0 = +_.find(prices, { id: token0.price_id })?.value;
   const price1 = +_.find(prices, { id: token1.price_id })?.value;
+
+  // Update cached rawInfo amounts
+  rawInfo.token_0_amount = pairInfo.amount_0;
+  rawInfo.token_1_amount = pairInfo.amount_1;
+
   return new ShadePair({
     ...t0,
     address: token0.contract_address,
@@ -207,21 +212,14 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
   }, lpTokenInfo, rawInfo, { address: rawInfo.staking_contract.address as SecretContractAddress, code_hash: rawInfo.staking_contract.code_hash});
 }
 
-
-/*export const TheStore = () => ({
-  pools: parsePoolsRaw(pairs),
-  getPoolById: (poolId: string) => parseRawPool(parsePool$1(_.find(pairs, { id: poolId}))),
-  isStablePool: (poolId: string) => TheStore().getPoolById(poolId).stableParams !== null
-})*/
-
 export const useTokens = () => ({
   getTokenDecimals(tokenId: string): number {
     return _.find(tokens, { id: tokenId }).decimals;
   },
 })
 
-export function parsePoolsRaw(e: TokenPairInfoRaw[]): { [p: string]: ShadeRoutePool } {
-  return e.reduce((t, n) => {
+export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[]): { [p: string]: ShadeRoutePool } {
+  return rawPairsInfo.reduce((t, n) => {
       const o = n.volume ? {
         volume: n.volume.volume,
         volume24HourChange: n.volume.volume_24h_change,
@@ -329,64 +327,4 @@ function parseRawPool(e): ShadeRoutePool {
       currency: U
     }
   }
-}
-
-export function parsePool$1(e: TokenPairInfoRaw) {
-  const t = e.volume ? {
-    volume: e.volume.volume,
-    volume24HourChange: e.volume.volume_24h_change,
-    volume24HourChangePercent: e.volume.volume_24h_change_perc,
-  } : {
-    volume: '0',
-    volume24HourChange: '0',
-    volume24HourChangePercent: '0',
-  };
-  let n;
-  e.stable_params !== null ? n = {
-    priceRatio: BigNumber(e.stable_params.price_ratio),
-    a: BigNumber(e.stable_params.a),
-    gamma1: BigNumber(e.stable_params.gamma1),
-    gamma2: BigNumber(e.stable_params.gamma2),
-    minTradeSizeToken0For1: BigNumber(e.stable_params.min_trade_size_0_to_1),
-    minTradeSizeToken1For0: BigNumber(e.stable_params.min_trade_size_1_to_0),
-    maxPriceImpactAllowed: BigNumber(e.stable_params.max_price_impact_allowed),
-  } : n = null;
-  const o = e.apy.reward_tokens.map(d => ({
-    tokenId: d.token_id,
-    apy: d.apy,
-  }));
-  return {
-    id: e.id,
-    contract: {
-      address: e.contract.address,
-      codeHash: e.contract.code_hash,
-    },
-    token0Id: e.token_0,
-    token0AmountRaw: e.token_0_amount,
-    token1Id: e.token_1,
-    token1AmountRaw: e.token_1_amount,
-    lpTokenId: e.lp_token,
-    stableParams: n,
-    fees: {
-      dao: BigNumber(e.fees.dao),
-      liquidityProvider: BigNumber(e.fees.lp),
-    },
-    rewardTokens: o,
-    stakingContract: {
-      id: e.staking_contract.id,
-      address: e.staking_contract.address,
-      codeHash: e.staking_contract.code_hash,
-    },
-    flags: e.flags,
-    metrics: {
-      liquidityRaw: e.liquidity,
-      volume: {
-        value: Number(t.volume),
-        changeAmount: Number(t.volume24HourChange),
-        changePercent: Number(t.volume24HourChangePercent),
-      },
-      apy: e.apy.total,
-      currency: e.currency,
-    },
-  };
 }

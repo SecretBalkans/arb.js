@@ -43,7 +43,7 @@ function toRawArbV1(json: ArbV1): ArbV1Raw {
     amount_bridge: json.amountBridge,
     amount_in: json.amountIn,
     amount_out: json.amountOut,
-    bridge: json.bridge || "",
+    bridge: json.bridge || '',
     dex_0: json.dex0,
     dex_1: json.dex1,
     id: json.id,
@@ -102,10 +102,12 @@ export default class ArbMonitorUploader {
         next: (arbPaths) => {
           this.nextTs();
           const ts = this.ts;
+          const includedForUpload = {};
           const toUpload = arbPaths.reduce((res, ap) => {
             const json = ap.toJSON();
             this.latestArbPaths[json.id] = json;
             const persistedArbPath = this.persistedArbPaths[json.id];
+            includedForUpload[json.id] = true;
             if (!persistedArbPath
               || json.amountIn !== persistedArbPath.amountIn
               || json.amountOut !== persistedArbPath.amountOut
@@ -128,6 +130,11 @@ export default class ArbMonitorUploader {
             many: ArbV1Raw[],
             ts: string[]
           });
+          Object.entries(this.persistedArbPaths).forEach(([id]) => {
+            if (!includedForUpload[id]) {
+              toUpload.ts.push(id)
+            }
+          });
           this.updateManyArbTs(toUpload.ts, ts).then((res) => {
             console.log(res);
             toUpload.ts.forEach(id => {
@@ -136,7 +143,7 @@ export default class ArbMonitorUploader {
           }).catch(console.error.bind(console));
 
           this.uploadManyArbs(toUpload.many).then((res) => {
-            console.log(`manyArbs`, { rows: res.rows, many: res.updateManyArbs.map(r => r.id)});
+            console.log(`manyArbs`, { rows: res.rows, many: res.updateManyArbs.map(r => r.id) });
             res.updateManyArbs.forEach(d => {
               this.persistedArbPaths[d.id] = d.arb;
             });

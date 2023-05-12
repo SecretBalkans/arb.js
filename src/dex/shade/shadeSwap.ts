@@ -24,15 +24,15 @@ import {
   Ro,
   ShadeSwapRoute,
   stableSwapToken0ToToken1InPool,
-  stableSwapToken1ToToken0InPool,
+  stableSwapToken1ToToken0InPool, validateTradeSize,
 } from './shade-calc';
-import { convertCoinFromUDenomV2, convertCoinToUDenomV2 } from '../../utils';
+import { convertCoinFromUDenomV2, convertCoinToUDenomV2, Logger } from '../../utils';
 import { Observable } from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
 import { getShadePairs, parsePoolsRaw, ShadePair, ShadeRoutePool, useTokens } from './shade-rest';
 import _ from 'lodash';
 import BigNumber from 'bignumber.js';
-
+const logger = new Logger('ShadeSwap')
 export default class ShadeSwap extends DexProtocol<ShadePair> {
   public name = 'shade' as DexProtocolName;
   public pools: IPool<ShadePair>[];
@@ -114,7 +114,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
             return agg.push(pathCalculation),
               agg;
           } catch (err) {
-            console.error(err);
+            logger.debugOnce(`Path outcome error = ${err.message}`);
             return agg;
           }
         }, [])
@@ -309,24 +309,28 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
 
   public override subscribeToPoolsUpdate(retryTime = 300): Observable<{ pools: IPool<ShadePair>[]; height: number }> {
     return new Observable<{ pools: IPool<ShadePair>[], height: number }>(observer => {
-      createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => getShadePairs()
-        .then((shadePairs: ShadePair[]) => {
-          const latestPools = shadePairs.map(sp => ({
-            poolId: sp.name as PoolId,
-            dex: 'shade' as DexProtocolName,
-            token0Id: toTokenId(sp.token0),
-            token0Amount: BigNumber(sp.token0.amount),
-            token1Id: toTokenId(sp.token1),
-            token1Amount: BigNumber(sp.token1.amount),
-            internalPool: sp,
-          }));
-          this.pools = latestPools;
-          this.routePairsById = parsePoolsRaw(_.map(shadePairs, 'rawInfo'));
-          return observer.next({
-            pools: latestPools,
-            height: blockHeight,
-          });
-        }).catch(console.error), console.error);
+      createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => {
+        const b = performance.now()
+        getShadePairs()
+          .then((shadePairs: ShadePair[]) => {
+            const latestPools = shadePairs.map(sp => ({
+              poolId: sp.name as PoolId,
+              dex: 'shade' as DexProtocolName,
+              token0Id: toTokenId(sp.token0),
+              token0Amount: BigNumber(sp.token0.amount),
+              token1Id: toTokenId(sp.token1),
+              token1Amount: BigNumber(sp.token1.amount),
+              internalPool: sp,
+            }));
+            this.pools = latestPools;
+            this.routePairsById = parsePoolsRaw(_.map(shadePairs, 'rawInfo'));
+            console.log(performance.now() - b);
+            return observer.next({
+              pools: latestPools,
+              height: blockHeight,
+            });
+          }).catch(console.error);
+      }, console.error);
     });
   }
 
@@ -438,6 +442,12 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
             });
         else
           throw Error('constant product rule swap parameter error');
+        try {
+          validateTradeSize(otherTokenDenomAmount, BigNumber(0))
+        } catch (e) {
+          const shadePairIPool = _.find(this.pools, p => p.internalPool.rawInfo.id === poolId);
+          throw Error(`Invalid trade size ${e.message} at path = ${shadePairIPool?.poolId}`);
+        }
         return {
           outputTokenId: otherTokenId,
           quoteOutputAmount: otherTokenDenomAmount,

@@ -3,6 +3,8 @@ const Bech32Address = {
   defaultBech32Config (str) { return str }
 }
 
+// copied from osmosis frontend
+
 const {
   IS_TESTNET,
   OSMOSIS_CHAIN_ID_OVERWRITE,
@@ -2602,6 +2604,13 @@ const chainInfos = (
           // coinGeckoId: "stride-staked-atom",
           coinGeckoId: "pool:stuatom",
           coinImageUrl: "/tokens/statom.svg",
+        },
+        {
+          coinDenom: "stINJ",
+          coinMinimalDenom: "stuinj",
+          coinDecimals: 6,
+          coinGeckoId: "pool:stuinj",
+          coinImageUrl: "/tokens/stinj.svg",
         },
         {
           coinDenom: "stSTARS",

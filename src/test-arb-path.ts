@@ -21,6 +21,11 @@ const logger = new Logger('ArbM');
   });*/
   const arbitrage = new ArbitrageMonitor(dexStore, [
     [SwapToken.SCRT, SwapToken.USDC],
+    [SwapToken.SCRT, SwapToken.OSMO],
+    [SwapToken.SCRT, SwapToken.ATOM],
+    [SwapToken.SCRT, SwapToken.BLD],
+    [SwapToken.SCRT, SwapToken.IST],
+    [SwapToken.SCRT, SwapToken.CMST],
     [SwapToken.CMST, SwapToken.IST],
     [SwapToken.BLD, SwapToken.USDC],
     [SwapToken.USDT, SwapToken.USDC],
@@ -32,8 +37,9 @@ const logger = new Logger('ArbM');
     [SwapToken.stATOM, SwapToken.ATOM],
     [SwapToken.stOSMO, SwapToken.OSMO],
     [SwapToken.stJUNO, SwapToken.JUNO],
-    // [SwapToken.stINJ, SwapToken.INJ],
-    // [SwapToken.stLUNA, SwapToken.LUNA],
+    [SwapToken.stINJ, SwapToken.INJ],
+    [SwapToken.INJ, SwapToken.SCRT],
+    [SwapToken.INJ, SwapToken.USDC],
   ]);
 
   // arbitrage.subscribeArbs().subscribe({
