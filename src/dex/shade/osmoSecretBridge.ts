@@ -95,7 +95,7 @@ async function bridge() {
     );
     const memo = "Cross-chain fun";
     const fee2 = {
-        amount: coins(2000, "ucosm"),
+        amount: coins(token_amount, token_denom),
         gas: "222000", // 222k
     };
 
@@ -103,19 +103,16 @@ async function bridge() {
     const result = await client2.sendIbcTokens(
         sender_account,
         depositAddress,
-        coin(token_amount, token_denom),
-        "fooPort",
-        "fooChannel",
+        coin(amountIn, token_denom),
+        "Axelar",
+        "channel-208",
         { revisionHeight: Long.fromNumber(123), revisionNumber: Long.fromNumber(456) },
         Math.floor(Date.now() / 1000) + 60,
         fee2,
         memo,
     );
-    const bridge_call = async () => {
-        //need to do osmosis transfer to generated axelar address
-    }
 
-    // await bridge_call()
+    console.log("Transaction result: ", result)
 }
 
 
