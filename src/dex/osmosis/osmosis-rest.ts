@@ -4,12 +4,14 @@ import { OptimizedRoutes, Pool, StablePool, WeightedPool } from '../../lib/@osmo
 import _ from 'lodash';
 import { PoolId } from '../types/dex-types';
 import incentivizedPoolIds from './incentivizedPoolIds';
+import OsmosisCalc from "./osmosis-calc";
 
 const agent = new https.Agent({
   keepAlive: true,
   keepAliveMsecs: 3000,
   maxSockets: 5,
 });
+// tslint:disable-next-line:one-variable-per-declaration
 let poolsLiquidity, shouldRefreshPoolsLiquidity = true;
 
 async function getPoolsLiquidity() {
@@ -21,36 +23,8 @@ async function getPoolsLiquidity() {
   return poolsLiquidity;
 }
 
-export let allPools: Pool[];
+let allPools: Pool[];
 
-export let routers: Record<string, OptimizedRoutes> = {};
-let globalRouter: OptimizedRoutes;
-let pairPools: Record<string, PoolId[]> = {};
-
-export function getOsmoPairPools(tokenInDenom: string, tokenOutDenom: string): PoolId[] {
-  const pairKey = getPairKey(tokenInDenom, tokenOutDenom);
-  if (!pairPools[pairKey]) {
-    globalRouter = globalRouter || new OptimizedRoutes(allPools, incentivizedPoolIds, 'uosmo');
-    pairPools[pairKey] = [...globalRouter.getCandidateRoutes(tokenInDenom, tokenOutDenom, 4, 3),
-      ...globalRouter.getCandidateRoutes(tokenOutDenom, tokenInDenom, 4, 3)]
-      .flatMap(d => d.pools.map(pool => pool.id as PoolId));
-  }
-  return pairPools[pairKey];
-}
-
-export function getPairKey(tokenInDenom: string, tokenOutDenom: string) {
-  return [tokenInDenom, tokenOutDenom].sort().join('-');
-}
-
-
-export function getPairRouter(tokenInDenom: string, tokenOutDenom: string) {
-  const routerPairKey = getPairKey(tokenInDenom, tokenOutDenom);
-  if (!routers[routerPairKey]) {
-    const pairPools = getOsmoPairPools(tokenInDenom, tokenOutDenom);
-    routers[routerPairKey] = new OptimizedRoutes(allPools.filter(p => pairPools.includes(p.id as PoolId)), incentivizedPoolIds, 'uosmo');
-  }
-  return routers[routerPairKey];
-}
 export async function getOsmoPools(): Promise<Pool[]> {
   const osmoReq = await fetchTimeout('https://osmosis.stakesystems.io/osmosis/gamm/v1beta1/pools?pagination.limit=1250', {
     agent,
@@ -70,7 +44,5 @@ export async function getOsmoPools(): Promise<Pool[]> {
         return new WeightedPool(poolRaw);
       }
     });
-  routers = {};
-  globalRouter = null;
   return allPools;
 }

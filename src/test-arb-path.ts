@@ -8,7 +8,7 @@ const logger = new Logger('ArbM');
 (async () => {
   const dexStore = new DexStore([
     new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
-    new ShadeSwap('https://secretnetwork-rpc.lavenderfive.com:443')
+    new ShadeSwap('https://secretnetwork-rpc.lavenderfive.com:443', false)
     ]
   );
   /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
@@ -26,23 +26,26 @@ const logger = new Logger('ArbM');
     [SwapToken.SCRT, SwapToken.BLD],
     [SwapToken.SCRT, SwapToken.IST],
     [SwapToken.SCRT, SwapToken.CMST],
+    [SwapToken.SCRT, SwapToken.stkATOM],
+    [SwapToken.SCRT, SwapToken.qATOM],
+    [SwapToken.SCRT, SwapToken.INJ],
     [SwapToken.CMST, SwapToken.IST],
     [SwapToken.BLD, SwapToken.USDC],
     [SwapToken.USDT, SwapToken.USDC],
     [SwapToken.ATOM, SwapToken.USDC],
-    [SwapToken.OSMO, SwapToken.USDC],
+    [SwapToken.ATOM, SwapToken.stkATOM],
     [SwapToken.ATOM, SwapToken.OSMO],
+    [SwapToken.ATOM, SwapToken.qATOM],
     [SwapToken.stATOM, SwapToken.stOSMO],
     [SwapToken.stOSMO, SwapToken.USDC],
     [SwapToken.stATOM, SwapToken.ATOM],
     [SwapToken.stOSMO, SwapToken.OSMO],
     [SwapToken.stJUNO, SwapToken.JUNO],
-    [SwapToken.INJ, SwapToken.stINJ],
-    [SwapToken.stkATOM, SwapToken.stkATOM],
-    [SwapToken.stkATOM, SwapToken.USDC],
-    [SwapToken.ATOM, SwapToken.stkATOM],
-    [SwapToken.INJ, SwapToken.SCRT],
+    [SwapToken.OSMO, SwapToken.USDC],
     [SwapToken.INJ, SwapToken.USDC],
+    [SwapToken.INJ, SwapToken.stINJ],
+    [SwapToken.USDC, SwapToken.stkATOM],
+    [SwapToken.USDC, SwapToken.qATOM],
   ]);
 
   // arbitrage.subscribeArbs().subscribe({

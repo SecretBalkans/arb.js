@@ -7,7 +7,7 @@ import bigInteger from 'big-integer';
 import { Amount } from '../dex/types/dex-types';
 
 export const convertCoinToUDenomV2 = (input: string | number | bigInteger.BigInteger | BigNumber, denom: number): bigInteger.BigNumber => {
-  return bigInteger((typeof input == 'string' || typeof input == 'number' ?
+  return bigInteger((typeof input === 'string' || typeof input === 'number' ?
     BigNumber(input)
       .multipliedBy(BigNumber(10).pow(denom)).toFixed(0) :
     BigNumber(input.toString()).multipliedBy(BigNumber(10).pow(denom)).toFixed(0)).toString());

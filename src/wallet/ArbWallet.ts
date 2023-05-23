@@ -244,6 +244,7 @@ export class ArbWallet {
     }
     let cached;
     const cacheKey = `${contractAddress}.${Object.getOwnPropertyNames(msg)[0]}`;
+    // tslint:disable-next-line:no-conditional-assignment
     if (useResultCache && (cached = _.get(this.CONTRACT_MSG_CACHE, cacheKey))) {
       return cached;
     }

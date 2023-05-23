@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/dex/dexSdk/index.ts",
+  ],
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "outDir": "build-dex"
+  },
+  "exclude": [
+    "build",
+    "build-dex",
+    "*.excl",
+    "node_modules",
+    ".secrets.js"
+  ]
+}

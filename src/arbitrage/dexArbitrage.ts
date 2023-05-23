@@ -6,7 +6,7 @@ import {
   DexProtocolName,
   IPool,
   IRoute,
-  PoolId,
+  PoolId, PoolInfo,
   reversePair,
   SwapToken,
   SwapTokenMap,
@@ -18,39 +18,11 @@ import {combineLatest, Observable, ObservedValueOf} from 'rxjs';
 import {filter, map} from 'rxjs/operators';
 import {Logger} from '../utils';
 import BigNumber from 'bignumber.js';
-import {RawShadeContract, ShadeContract} from '../dex/shade/types';
+import {ArbPathJSON} from "./types";
 
 const logger = new Logger('ArbitrageInternal');
 
-export type RouteSegmentInfoWithAmounts = {
-  info: RouteSegmentInfo,
-  amount0: string,
-  amount1: string
-}
-
-// TODO: fix this type to be debend on dexProtocolName
-export type RouteSegmentInfo =/*Osmosis*/ PoolId | /*Shade*/{
-  t0: RawShadeContract & { logo_path: string, symbol: string },
-  t1: RawShadeContract & { logo_path: string, symbol: string },
-  lp: RawShadeContract,
-}
-
-export interface ArbPathJSON {
-  id: string,
-  dex1: DexProtocolName;
-  dex0: DexProtocolName;
-  amountIn: number;
-  amountBridge: number;
-  amountOut: number;
-  bridge: any[];
-  route0: RouteSegmentInfoWithAmounts[],
-  route1: RouteSegmentInfoWithAmounts[];
-  error1: string;
-  error0: string;
-  pair: [SwapToken, SwapToken]
-}
-
-export class ArbPath<T extends DexPool, K extends DexPool, B> {
+export class ArbPath<T extends DexProtocolName, K extends DexProtocolName, B> {
   pair: ArbPair;
   dex0: DexProtocol<T>;
   dex1: DexProtocol<K>;
@@ -122,16 +94,8 @@ export class ArbPath<T extends DexPool, K extends DexPool, B> {
       pair: this.pair,
       dex0: this.dex0.name,
       dex1: this.dex1.name,
-      route0: this.route0?.map(r => ({
-        info: r.pool.internalPool as unknown as RouteSegmentInfo,
-        amount0: r.pool.token0Amount.toFixed(0),
-        amount1: r.pool.token1Amount.toFixed(0)
-      })),
-      route1: this.route1?.map(r => ({
-        info: r.pool.internalPool as unknown as RouteSegmentInfo,
-        amount0: r.pool.token0Amount.toFixed(0),
-        amount1: r.pool.token1Amount.toFixed(0)
-      })),
+      route0: this.route0,
+      route1: this.route1,
       bridge: this.bridge,
       amountIn: this.amountIn?.toNumber(),
       amountBridge: this.amountBridge?.toNumber(),
@@ -162,7 +126,7 @@ export class ArbitrageMonitor {
     }
   }
 
-  calcDexArbOut<T extends DexPool, K extends DexPool, B extends any>(
+  calcDexArbOut<T extends DexProtocolName, K extends DexProtocolName, B extends any>(
     amount: Amount,
     pair: ArbPair,
     dexProtocol0: DexProtocol<T>,
@@ -173,7 +137,7 @@ export class ArbitrageMonitor {
       amountOut: interAmount,
       route: route0,
       internalSwapError: error0,
-    } = dexProtocol0.calcSwap(amount, swapPair, routesHints?.route0?.map(r => r.pool));
+    } = dexProtocol0.calcSwap(amount, swapPair, routesHints?.route0);
     if (error0) {
       return new ArbPath<T, K, B>({
         error0,
@@ -186,7 +150,7 @@ export class ArbitrageMonitor {
       amountOut,
       route: route1,
       internalSwapError: error1,
-    } = dexProtocol1.calcSwap(interAmount, reversePair(swapPair), routesHints?.route1?.map(r => r.pool));
+    } = dexProtocol1.calcSwap(interAmount, reversePair(swapPair), routesHints?.route1);
     return new ArbPath<T, K, B>({
       error0,
       error1,
@@ -201,15 +165,15 @@ export class ArbitrageMonitor {
     });
   }
 
-  getCapacityUntilBalance<T extends DexPool, K extends DexPool, B extends any>(
-    route: ArbPath<T, K, B>): ArbPath<T, K, B> | null {
+  getCapacityUntilBalance<T extends DexProtocolName, K extends DexProtocolName, B extends any>(
+    path: ArbPath<T, K, B>): ArbPath<T, K, B> | null {
     const epsilon = 0.5;
     let diff;
     let count = 0;
-    let baseAmount = route.amountIn;
-    let step = route.amountIn.isEqualTo(this.DEFAULT_BASE_AMOUNT) ? route.amountIn.multipliedBy(0.5) : route.amountOut.minus(route.amountIn).absoluteValue();
-    let prevAmount = route.amountIn;
-    const restCalcArgs = [route.pair, route.dex0, route.dex1, route];
+    let baseAmount = path.amountIn;
+    let step = path.amountIn.isEqualTo(this.DEFAULT_BASE_AMOUNT) ? path.amountIn.multipliedBy(0.5) : path.amountOut.minus(path.amountIn).absoluteValue();
+    let prevAmount = path.amountIn;
+    const restCalcArgs = [path.pair, path.dex0, path.dex1, path];
     let previousOutcome = this.calcDexArbOut.apply(this, [baseAmount, ...restCalcArgs]).amountOut;
 
     let dir = 1;
@@ -236,7 +200,7 @@ export class ArbitrageMonitor {
     return result;
   }
 
-  subscribeArbs(): Observable<ArbPath<DexPool, DexPool, any>[]> {
+  subscribeArbs(): Observable<ArbPath<DexProtocolName, DexProtocolName, any>[]> {
     let d0poolMap: Record<PoolId, true>;
     let d1poolMap: Record<PoolId, true>;
     return this.store.subscribeDexProtocolsCombined().pipe(
@@ -262,15 +226,16 @@ export class ArbitrageMonitor {
         const result = _.map(changedPairs, changedPair => {
           console.time(changedPair.join('-'));
           const baseAmount = this.getCurrentCapacity({pair: changedPair, dex0, dex1});
-          const arbPath = _.maxBy([
+          const pathResults = [
             this.calcDexArbOut(baseAmount, changedPair, dex0, dex1),
             this.calcDexArbOut(baseAmount, changedPair, dex1, dex0),
             this.calcDexArbOut(baseAmount, reversePair(changedPair), dex0, dex1),
             this.calcDexArbOut(baseAmount, reversePair(changedPair), dex1, dex0),
-          ], d => d.amountOut?.minus(d.amountIn).dividedBy(d.amountIn).toNumber() || 0);
+          ];
+          const arbPath = _.maxBy(pathResults, d => d.amountOut?.minus(d.amountIn).dividedBy(d.amountIn).toNumber() || 0);
           console.timeEnd(changedPair.join('-'));
           return arbPath;
-        }).map((arbPath: ArbPath<DexPool, DexPool, any>) => {
+        }).map((arbPath: ArbPath<DexProtocolName, DexProtocolName, any>) => {
           if (arbPath.amountOut?.isGreaterThan(arbPath.amountIn)) {
             console.time('Capacity/' + arbPath.pair.join('-'));
             const capacityUntilBalance = this.getCapacityUntilBalance(arbPath);
@@ -287,7 +252,7 @@ export class ArbitrageMonitor {
           }
         });
         console.timeEnd('Total');
-        return result;
+        return _.compact(result);
       }),
     );
   }
@@ -298,7 +263,7 @@ export class ArbitrageMonitor {
                                pair,
                                dex0,
                                dex1,
-                             }: { pair: ArbPair, dex0: DexProtocol<DexPool>, dex1: DexProtocol<DexPool> }): Amount {
+                             }: { pair: ArbPair, dex0: DexProtocol<DexProtocolName>, dex1: DexProtocol<DexProtocolName> }): Amount {
     return this.capacityMap[this.getCapacityKey({pair, dex0, dex1})] || this.DEFAULT_BASE_AMOUNT;
   }
 
@@ -306,11 +271,11 @@ export class ArbitrageMonitor {
                            pair,
                            dex0,
                            dex1,
-                         }: { pair: ArbPair, dex0: DexProtocol<DexPool>, dex1: DexProtocol<DexPool> }): string {
+                         }: { pair: ArbPair, dex0: DexProtocol<DexProtocolName>, dex1: DexProtocol<DexProtocolName> }): string {
     return `${pair.slice().sort().join('-')}[${[dex0.name, dex1.name].sort().join('-')}]`;
   }
 
-  private setCurrentCapacity(path: ArbPath<DexPool, DexPool, any>) {
+  private setCurrentCapacity(path: ArbPath<DexProtocolName, DexProtocolName, any>) {
     this.capacityMap[this.getCapacityKey(path)] = path.amountIn;
   }
 }
@@ -330,18 +295,18 @@ class PersistedPoolData<T extends DexPool> {
 }
 
 export class DexStore {
-  public readonly dexSubscriptions: Partial<Record<DexProtocolName, Observable<{ dex: DexProtocol<DexPool>, pools: IPool<DexPool>[], height: number }>>> = {};
+  public readonly dexSubscriptions: Partial<Record<DexProtocolName, Observable<{ dex: DexProtocol<DexProtocolName>, pools: IPool<PoolInfo<DexProtocolName>>[], height: number }>>> = {};
 
   // We keep the latest dex heights to avoid emitting more than one event for each dex block update
   private readonly heights: Partial<Record<DexProtocolName, number>> = {};
 
-  constructor(private readonly dexProtocols: DexProtocol<DexPool>[]) {
+  constructor(private readonly dexProtocols: DexProtocol<DexProtocolName>[]) {
     dexProtocols.forEach(this.attachLivePoolStore.bind(this));
   }
 
   private readonly dexPools: Partial<Record<DexProtocolName, Record<PoolId, PersistedPoolData<DexPool>>>> = {};
 
-  subscribeDexProtocolsCombined(): Observable<ObservedValueOf<Observable<{ dex: DexProtocol<DexPool>, pools: IPool<DexPool>[]; height: number }>>[]> {
+  subscribeDexProtocolsCombined(): Observable<ObservedValueOf<Observable<{ dex: DexProtocol<DexProtocolName>, pools: IPool<PoolInfo<DexProtocolName>>[]; height: number }>>[]> {
     return combineLatest(Object.values(this.dexSubscriptions))/*.pipe(startWith(Object.keys(this.dexPools).map((d) => {
       return {
         dex: d as DexProtocol,
@@ -366,7 +331,7 @@ export class DexStore {
       _.set(this.dexPools, dexPoolKey, new PersistedPoolData({height: null, pool: null}));
   }
 
-  attachLivePoolStore(dex: DexProtocol<DexPool>) {
+  attachLivePoolStore(dex: DexProtocol<DexProtocolName>) {
     const subscription = dex.subscribeToPoolsUpdate().pipe(filter(({height}) => {
       let shouldEmit = false;
       // We update the latest heights for each dex subscription to avoid emitting more than one event for each dex block update

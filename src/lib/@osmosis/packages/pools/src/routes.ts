@@ -29,11 +29,11 @@ export class OptimizedRoutes {
 
   constructor(
     pools: ReadonlyArray<Pool>,
-    incventivizedPoolIds: string[],
+    incentivizedPoolIds: string[],
     protected readonly stakeCurrencyMinDenom: string
   ) {
     this._pools = pools;
-    this._incentivizedPoolIds = incventivizedPoolIds;
+    this._incentivizedPoolIds = incentivizedPoolIds;
   }
 
   get pools(): ReadonlyArray<Pool> {

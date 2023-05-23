@@ -21,6 +21,7 @@
   ],
   "exclude": [
     "build",
+    "build-dex",
     "*.excl",
     "node_modules",
     ".secrets.js"

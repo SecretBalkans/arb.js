@@ -5,50 +5,39 @@ import {
   DexProtocolName,
   IPool,
   IRoute,
-  PoolId, PoolToken,
+  PoolId,
   SwapToken,
   SwapTokenMap,
   Token,
 } from '../types/dex-types';
-import {extractShadeTokenSymbolById, getShadeTokenById, getShadeTokenBySymbol, toTokenId} from './tokens';
+import {getShadeTokenById, getShadeTokenBySymbol, toTokenId} from './tokens';
 import {
-  calculateStableSwapPriceImpactInputToken0,
-  calculateStableSwapPriceImpactInputToken1,
-  calculateXYKPriceImpactFromToken0Amount,
-  calculateXYKPriceImpactFromToken1Amount,
-  calculateXYKToken0AmountFromToken1Amount,
-  calculateXYKToken1AmountFromToken0Amount,
   findShadePaths,
-  Fo,
-  getTradeInputOfSimulateReverseToken0WithToken1Trade,
-  getTradeInputOfSimulateReverseToken1WithToken0Trade,
-  Ro,
   ShadeSwapRoute,
-  stableSwapToken0ToToken1InPool,
-  stableSwapToken1ToToken0InPool, validateTradeSize,
-} from './shade-calc';
-import {convertCoinFromUDenomV2, convertCoinToUDenomV2, Logger} from '../../utils';
+} from './shade-calc-utils';
+import {convertCoinFromUDenomV2, Logger} from '../../utils';
 import {Observable} from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
-import {getShadePairs, parsePoolsRaw, ShadePair, ShadeRoutePool, TokenPairInfoRaw, useTokens} from './shade-rest';
+import {getShadePairs, parsePoolsRaw} from './shade-api';
 import _ from 'lodash';
 import BigNumber from 'bignumber.js';
+import ShadeCalc, {ShadeRoutePoolEssentialsIdMap} from "./shade-calc";
+import {ShadePair} from './shade-api-utils';
 
 const logger = new Logger('ShadeSwap')
-export default class ShadeSwap extends DexProtocol<ShadePair> {
+export default class ShadeSwap extends DexProtocol<'shade'> {
   public name = 'shade' as DexProtocolName;
   public pools: IPool<ShadePair>[];
-  routePairsById: { [p: string]: ShadeRoutePool; };
+  shadePairsMap: ShadeRoutePoolEssentialsIdMap;
 
-  constructor(public readonly rpcEndpoint: string) {
+  constructor(public readonly rpcEndpoint: string, private readonly USE_ONLY_SHADE_API_NO_BLOCKCHAIN_QUERY = false) {
     super();
   }
 
-  public override;
-
-  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: ShadePair[]): { route: IRoute<ShadePair>; amountOut: Amount } | null {
+  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: IRoute<'shade'>): { route: IRoute<'shade'>; amountOut: Amount } | null {
     const startingToken = getShadeTokenBySymbol(tokenInId);
     const endingToken = getShadeTokenBySymbol(tokenOutId);
+    const pools = _.map(poolsHint, p => p.raw.id);
     const [route] = this.calculateBestShadeSwapRoutes({
       inputTokenAmount: amountIn.multipliedBy(10 ** startingToken.decimals),
       startingTokenId: startingToken.id,
@@ -59,23 +48,13 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       //  we need to split big routes into two smaller ones and execute it into
       //  two messages and thus support bigger (7-8-more?) routes
       //  as they can often give better arb
-      pools: _.map(poolsHint, (p: any) => (p?.rawInfo?.id || p.poolId || p.id) as PoolId),
+      shadePairs: pools?.length ? _.pick(this.shadePairsMap, pools) : this.shadePairsMap,
     });
     return route ? {
       route: route.route.map(r => ({
-        pool: {
-          poolId: r.id,
-          token1Id: extractShadeTokenSymbolById(r.token0Id) as PoolToken,
-          token0Id: extractShadeTokenSymbolById(r.token1Id) as PoolToken,
-          token0Amount: r.token0Amount,
-          token1Amount: r.token1Amount,
-          dex: 'shade',
-          internalPool: {
-            t0: _.pick(getShadeTokenById(r.token0Id), ['contract_address', 'code_hash', 'logo_path', 'symbol']),
-            t1: _.pick(getShadeTokenById(r.token1Id), ['contract_address', 'code_hash', 'logo_path', 'symbol']),
-            lp: r.contract,
-          },// TODO: fix this mess and unify ShadePair type and lp contract data
-        } as any,
+        raw: r,
+        t0: _.pick(getShadeTokenById(r.token0Id), ['id', 'contract_address', 'code_hash', 'logo_path', 'symbol', 'decimals']),
+        t1: _.pick(getShadeTokenById(r.token1Id), ['id', 'contract_address', 'code_hash', 'logo_path', 'symbol', 'decimals']),
       })),
       amountOut: convertCoinFromUDenomV2(route.quoteOutputAmount, endingToken.decimals),
     } : null;
@@ -88,22 +67,21 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
                                  endingTokenId: endingTokenId,
                                  maxHops: maxHops,
                                  isReverse: h = !1,
-                                 pools,
+                                 shadePairs,
                                }: {
     inputTokenAmount: Amount,
     startingTokenId: string,
     endingTokenId: string,
     maxHops: number,
-    pools: PoolId[],
+    shadePairs: ShadeRoutePoolEssentialsIdMap,
     isReverse: boolean,
   }): ShadeSwapRoute[] {
-    const poolsMap: { [p: PoolId]: ShadeRoutePool } = pools.length ? _.pick(this.routePairsById, pools) : this.routePairsById;
-
+    const shadeCalc = new ShadeCalc(shadePairs)
     const rawPaths = findShadePaths({
       startingTokenId,
       endingTokenId,
       maxHops,
-      pools: poolsMap,
+      pools: shadePairs,
     });
     if (rawPaths.length === 0) {
       return [];
@@ -112,7 +90,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       return rawPaths
         .reduce((agg, currentPath) => {
           try {
-            const pathCalculation = this.calculatePathOutcome({
+            const pathCalculation = shadeCalc.calculatePathOutcome({
               startingTokenAmount: tokenAmount,
               startingTokenId,
               path: currentPath,
@@ -120,7 +98,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
             return agg.push(pathCalculation),
               agg;
           } catch (err) {
-            logger.debugOnce(`Path outcome error = ${err.message}`);
+            logger.debugOnce(`Path outcome error (${currentPath})= ${err.message} ${err.stack}`);
             return agg;
           }
         }, [])
@@ -128,7 +106,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
     } else {
       const $ = rawPaths.reduce((d, path) => {
           try {
-            const D = this.calculatePathQuotaByEnding({
+            const D = shadeCalc.calculatePathQuotaByEnding({
               endingTokenAmount: tokenAmount,
               endingTokenId,
               path,
@@ -136,7 +114,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
             return d.push(D),
               d;
           } catch (err) {
-            console.error(err);
+            logger.debugOnce(err.message);
             return d;
           }
         }
@@ -146,171 +124,13 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       }
       const F = $.reduce((d, o) => d.inputAmount.isLessThan(o.inputAmount) ? d : o, $[0])
         , P = F.inputAmount;
-      return rawPaths.map(path => this.calculatePathOutcome({
+      return rawPaths.map(path => shadeCalc.calculatePathOutcome({
         startingTokenAmount: P,
         startingTokenId,
         path,
       })).map(d => JSON.stringify(d.route) === JSON.stringify(F.route) ? F : d)
         .sort((d, o) => JSON.stringify(d.route) === JSON.stringify(F.route) ? -1 : JSON.stringify(o.route) === JSON.stringify(F.route) ? 1 : d.quoteOutputAmount.isGreaterThan(o.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(o.quoteOutputAmount) ? 1 : 0);
     }
-  }
-
-  calculatePathQuotaByEnding({
-                               endingTokenAmount: endingTokenAmount,
-                               endingTokenId: endingTokenId,
-                               path: path,
-                             }) {
-    const {getTokenDecimals: getTokenDecimals} = useTokens()
-      , {
-      inputTokenId: sourceTokenId,
-      quoteInputAmount: inputAmount,
-      quoteShadeDaoFee: quoteShadeDaoFee,
-      quoteLPFee: quoteLpFee,
-      quotePriceImpact: priceImpact,
-      hops: hopsButAlsoRouteUnclear,
-    } = [...path].reverse().reduce((pathSegment, poolId) => {
-      const {
-        inputTokenId: inputTokenId,
-        quoteInputAmount: quoteInputAmount,
-        quoteShadeDaoFee: quoteShadeDaoFee,
-        quotePriceImpact: quotePriceImpact,
-        quoteLPFee: quoteLpFee,
-        hops: numOfHops,
-      } = pathSegment;
-      let otherTokenAmount, priceImpact;
-      const poolPairInfo = this.getPoolById(poolId);
-      numOfHops.unshift(poolPairInfo);
-      const token0Decimals = getTokenDecimals(poolPairInfo.token0Id)
-        , token1Decimals = getTokenDecimals(poolPairInfo.token1Id)
-        , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(10 ** token0Decimals)
-        , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(10 ** token1Decimals)
-        , inputTokenDecimals = getTokenDecimals(inputTokenId)
-        , inputAmount = quoteInputAmount.toString()
-        , l = convertCoinFromUDenomV2(inputAmount, inputTokenDecimals);
-      let u;
-      inputTokenId === poolPairInfo.token0Id ? u = poolPairInfo.token1Id : u = poolPairInfo.token0Id;
-      const te = getTokenDecimals(u);
-      if (this.isStablePool(poolId)) {
-        if (inputTokenId === poolPairInfo.token1Id && poolPairInfo.stableParams !== null) {
-          const Z = {
-            outputToken1Amount: l,
-            poolToken0Amount: poolPairInfo.token0Amount,
-            poolToken1Amount: poolPairInfo.token1Amount,
-            priceRatio: poolPairInfo.stableParams.priceRatio,
-            a: poolPairInfo.stableParams.a,
-            gamma1: poolPairInfo.stableParams.gamma1,
-            gamma2: poolPairInfo.stableParams.gamma2,
-            liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-            daoFee: poolPairInfo.fees.dao,
-            minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-            minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-            priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-          }
-            , startingInputTokenAmount = getTradeInputOfSimulateReverseToken0WithToken1Trade(Z);
-          otherTokenAmount = BigNumber(convertCoinToUDenomV2(startingInputTokenAmount, te).toString());
-          const b = {
-            inputToken0Amount: startingInputTokenAmount,
-            poolToken0Amount: poolPairInfo.token0Amount,
-            poolToken1Amount: poolPairInfo.token1Amount,
-            priceRatio: poolPairInfo.stableParams.priceRatio,
-            a: poolPairInfo.stableParams.a,
-            gamma1: poolPairInfo.stableParams.gamma1,
-            gamma2: poolPairInfo.stableParams.gamma2,
-            liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-            daoFee: poolPairInfo.fees.dao,
-            minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-            minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-            priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-          };
-          priceImpact = calculateStableSwapPriceImpactInputToken0(b);
-        } else if (inputTokenId === poolPairInfo.token0Id && poolPairInfo.stableParams !== null) {
-          const Z = {
-            outputToken0Amount: l,
-            poolToken0Amount: poolPairInfo.token0Amount,
-            poolToken1Amount: poolPairInfo.token1Amount,
-            priceRatio: poolPairInfo.stableParams.priceRatio,
-            a: poolPairInfo.stableParams.a,
-            gamma1: poolPairInfo.stableParams.gamma1,
-            gamma2: poolPairInfo.stableParams.gamma2,
-            liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-            daoFee: poolPairInfo.fees.dao,
-            minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-            minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-            priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-          }
-            , V = getTradeInputOfSimulateReverseToken1WithToken0Trade(Z);
-          otherTokenAmount = BigNumber(convertCoinToUDenomV2(V, te).toString());
-          const b = {
-            inputToken1Amount: V,
-            poolToken0Amount: poolPairInfo.token0Amount,
-            poolToken1Amount: poolPairInfo.token1Amount,
-            priceRatio: poolPairInfo.stableParams.priceRatio,
-            a: poolPairInfo.stableParams.a,
-            gamma1: poolPairInfo.stableParams.gamma1,
-            gamma2: poolPairInfo.stableParams.gamma2,
-            liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-            daoFee: poolPairInfo.fees.dao,
-            minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-            minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-            priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-          };
-          priceImpact = calculateStableSwapPriceImpactInputToken1(b);
-        } else {
-          throw Error('stableswap parameter error');
-        }
-      } // An XYK Pool
-      else if (inputTokenId === poolPairInfo.token1Id) {
-        otherTokenAmount = calculateXYKToken0AmountFromToken1Amount({
-          token0LiquidityAmount: token0AmountInDenom,
-          token1LiquidityAmount: token1AmountInDenom,
-          token1OutputAmount: quoteInputAmount,
-          fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-        }),
-          priceImpact = calculateXYKPriceImpactFromToken0Amount({
-            token0LiquidityAmount: token0AmountInDenom,
-            token1LiquidityAmount: token1AmountInDenom,
-            token0InputAmount: otherTokenAmount,
-          });
-      } else if (inputTokenId === poolPairInfo.token0Id)
-        otherTokenAmount = calculateXYKToken1AmountFromToken0Amount({
-          token0LiquidityAmount: token0AmountInDenom,
-          token1LiquidityAmount: token1AmountInDenom,
-          token0OutputAmount: quoteInputAmount,
-          fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-        }),
-          priceImpact = calculateXYKPriceImpactFromToken1Amount({
-            token0LiquidityAmount: token0AmountInDenom,
-            token1LiquidityAmount: token1AmountInDenom,
-            token1InputAmount: otherTokenAmount,
-          });
-      else
-        throw Error('constant product rule swap parameter error');
-      return {
-        inputTokenId: u,
-        quoteInputAmount: otherTokenAmount,
-        quoteShadeDaoFee: quoteShadeDaoFee.plus(poolPairInfo.fees.dao),
-        quoteLPFee: quoteLpFee.plus(poolPairInfo.fees.liquidityProvider),
-        quotePriceImpact: quotePriceImpact.plus(priceImpact),
-        hops: numOfHops,
-      };
-    }, {
-      inputTokenId: endingTokenId,
-      quoteInputAmount: endingTokenAmount,
-      quoteShadeDaoFee: BigNumber(0),
-      quoteLPFee: BigNumber(0),
-      quotePriceImpact: BigNumber(0),
-      hops: [],
-    });
-    return {
-      inputAmount,
-      quoteOutputAmount: endingTokenAmount,
-      quoteShadeDaoFee,
-      quoteLPFee: quoteLpFee,
-      priceImpact,
-      sourceTokenId,
-      targetTokenId: endingTokenId,
-      route: hopsButAlsoRouteUnclear,
-    };
   }
 
   private isFetchingShadePairs = false;
@@ -321,7 +141,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
         if (!this.isFetchingShadePairs) {
           const b = performance.now()
           this.isFetchingShadePairs = true;
-          getShadePairs()
+          getShadePairs(this.USE_ONLY_SHADE_API_NO_BLOCKCHAIN_QUERY)
             .then((shadePairs: ShadePair[]) => {
               const latestPools = _.compact(shadePairs).map(sp => ({
                 poolId: sp.name as PoolId,
@@ -333,7 +153,8 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
                 internalPool: sp,
               }));
               this.pools = latestPools;
-              this.routePairsById = parsePoolsRaw(_.map(shadePairs, 'rawInfo'));
+              // We might need more properties from Parsed but here we cast to Essential
+              this.shadePairsMap = parsePoolsRaw(_.map(shadePairs, 'rawInfo')) as ShadeRoutePoolEssentialsIdMap;
               console.log('ShadePairs', performance.now() - b);
               setImmediate(() => {
                 observer.next({
@@ -357,154 +178,8 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
         startingTokenId: startingToken.id,
         endingTokenId: endingToken.id,
         maxHops: 5,
-        pools: this.routePairsById,
+        pools: this.shadePairsMap,
       }));
     }));
-  }
-
-  private calculatePathOutcome({
-                                 startingTokenAmount: startingTokenAmount,
-                                 startingTokenId: startingTokenId,
-                                 path: path,
-                               }) {
-    const g = useTokens()
-      , {getTokenDecimals: getTokenDecimals} = g
-      , pathReduceResult = path.reduce((pathSegment, poolId) => {
-        const {
-          outputTokenId: outputTokenId,
-          quoteOutputAmount: quoteOutputAmount,
-          quoteShadeDaoFee: re,
-          quotePriceImpact: totalPriceImpact,
-          quoteLPFee: totalLPFee,
-          hops: ne,
-        } = pathSegment;
-        let otherTokenDenomAmount, priceImpact;
-        const poolPairInfo = this.getPoolById(poolId);
-        // , he = parseRawPool(poolPairInfo);
-        ne.push(poolPairInfo);
-        const token0Decimals = getTokenDecimals(poolPairInfo.token0Id)
-          , token1Decimals = getTokenDecimals(poolPairInfo.token1Id)
-          , token0AmountInDenom = poolPairInfo.token0Amount.multipliedBy(10 ** token0Decimals)
-          , token1AmountInDenom = poolPairInfo.token1Amount.multipliedBy(10 ** token1Decimals)
-          , outputTokenDecimals = getTokenDecimals(outputTokenId)
-          , outputAmountString = quoteOutputAmount.toString()
-          , inputToken0Amount = convertCoinFromUDenomV2(outputAmountString, outputTokenDecimals);
-        let otherTokenId;
-        outputTokenId === poolPairInfo.token0Id ? otherTokenId = poolPairInfo.token1Id : otherTokenId = poolPairInfo.token0Id;
-        const otherTokenDecimals = getTokenDecimals(otherTokenId);
-        if (this.isStablePool(poolId))
-          if (outputTokenId === poolPairInfo.token0Id && poolPairInfo.stableParams !== null) {
-            const stablePoolParams = {
-              inputToken0Amount,
-              poolToken0Amount: poolPairInfo.token0Amount,
-              poolToken1Amount: poolPairInfo.token1Amount,
-              priceRatio: poolPairInfo.stableParams.priceRatio,
-              a: poolPairInfo.stableParams.a,
-              gamma1: poolPairInfo.stableParams.gamma1,
-              gamma2: poolPairInfo.stableParams.gamma2,
-              liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-              daoFee: poolPairInfo.fees.dao,
-              minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-              minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-              priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-            }
-              , otherTokenAmount = stableSwapToken0ToToken1InPool(stablePoolParams);
-            otherTokenDenomAmount = BigNumber(convertCoinToUDenomV2(otherTokenAmount, otherTokenDecimals).toString()),
-              priceImpact = calculateStableSwapPriceImpactInputToken0(stablePoolParams);
-          } else if (outputTokenId === poolPairInfo.token1Id && poolPairInfo.stableParams !== null) {
-            const Z = {
-              inputToken1Amount: inputToken0Amount,
-              poolToken0Amount: poolPairInfo.token0Amount,
-              poolToken1Amount: poolPairInfo.token1Amount,
-              priceRatio: poolPairInfo.stableParams.priceRatio,
-              a: poolPairInfo.stableParams.a,
-              gamma1: poolPairInfo.stableParams.gamma1,
-              gamma2: poolPairInfo.stableParams.gamma2,
-              liquidityProviderFee: poolPairInfo.fees.liquidityProvider,
-              daoFee: poolPairInfo.fees.dao,
-              minTradeSizeToken0For1: poolPairInfo.stableParams.minTradeSizeToken0For1,
-              minTradeSizeToken1For0: poolPairInfo.stableParams.minTradeSizeToken1For0,
-              priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
-            }
-              , V = stableSwapToken1ToToken0InPool(Z);
-            otherTokenDenomAmount = BigNumber(convertCoinToUDenomV2(V, otherTokenDecimals).toString()),
-              priceImpact = calculateStableSwapPriceImpactInputToken1(Z);
-          } else {
-            throw Error('stableswap parameter error');
-          } else if (outputTokenId === poolPairInfo.token0Id) {
-          otherTokenDenomAmount = Fo({
-            token0LiquidityAmount: token0AmountInDenom,
-            token1LiquidityAmount: token1AmountInDenom,
-            token0InputAmount: quoteOutputAmount,
-            fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-          });
-          priceImpact = calculateXYKPriceImpactFromToken0Amount({
-            token0LiquidityAmount: token0AmountInDenom,
-            token1LiquidityAmount: token1AmountInDenom,
-            token0InputAmount: quoteOutputAmount,
-          });
-        } else if (outputTokenId === poolPairInfo.token1Id)
-          otherTokenDenomAmount = Ro({
-            token0LiquidityAmount: token0AmountInDenom,
-            token1LiquidityAmount: token1AmountInDenom,
-            token1InputAmount: quoteOutputAmount,
-            fee: poolPairInfo.fees.liquidityProvider.plus(poolPairInfo.fees.dao),
-          }),
-            priceImpact = calculateXYKPriceImpactFromToken1Amount({
-              token0LiquidityAmount: token0AmountInDenom,
-              token1LiquidityAmount: token1AmountInDenom,
-              token1InputAmount: quoteOutputAmount,
-            });
-        else
-          throw Error('constant product rule swap parameter error');
-        try {
-          validateTradeSize(otherTokenDenomAmount, BigNumber(0))
-        } catch (e) {
-          const shadePairIPool = _.find(this.pools, p => p.internalPool.rawInfo.id === poolId);
-          throw Error(`Invalid trade size ${e.message} at path = ${shadePairIPool?.poolId}`);
-        }
-        return {
-          outputTokenId: otherTokenId,
-          quoteOutputAmount: otherTokenDenomAmount,
-          quoteShadeDaoFee: re.plus(poolPairInfo.fees.dao),
-          quoteLPFee: totalLPFee.plus(poolPairInfo.fees.liquidityProvider),
-          quotePriceImpact: totalPriceImpact.plus(priceImpact),
-          hops: ne,
-        };
-      }
-      , {
-        outputTokenId: startingTokenId,
-        quoteOutputAmount: startingTokenAmount,
-        quoteShadeDaoFee: BigNumber(0),
-        quoteLPFee: BigNumber(0),
-        quotePriceImpact: BigNumber(0),
-        hops: [],
-      })
-      , {
-      outputTokenId: $,
-      quoteOutputAmount: F,
-      quoteShadeDaoFee: P,
-      quoteLPFee: I,
-      quotePriceImpact: d,
-      hops: rt,
-    } = pathReduceResult;
-    return {
-      inputAmount: startingTokenAmount,
-      quoteOutputAmount: F,
-      quoteShadeDaoFee: P,
-      quoteLPFee: I,
-      priceImpact: d,
-      sourceTokenId: startingTokenId,
-      targetTokenId: $,
-      route: rt,
-    };
-  }
-
-  private getPoolById(poolId: PoolId): ShadeRoutePool {
-    return this.routePairsById[poolId];
-  }
-
-  private isStablePool(poolId: PoolId) {
-    return this.getPoolById(poolId).stableParams !== null;
   }
 }

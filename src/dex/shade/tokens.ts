@@ -1,8 +1,8 @@
-import { SwapTokenMap, Token } from '../types/dex-types';
+import {PoolId, SwapTokenMap, Token} from '../types/dex-types';
 import { SnipPoolToken } from './types';
 import _ from 'lodash';
 import { Logger } from '../../utils';
-import { tokens, pairs } from './shade-rest';
+import { tokens, pairs } from './shade-api-utils';
 
 const logger = new Logger('ShadeTokens');
 
@@ -54,7 +54,7 @@ function extractShadeTokenSymbol(shadeToken) {
   return _.trimStart(shadeToken.symbol.replace('stk', '_stk^').replace('st', '_st$'), 'as').replace('.axl','').replace('-', '').replace('_st$', 'st').replace('_stk^', 'stk');
 }
 
-export function getShadeTokenBySymbol(symbol: Token): { id: string, symbol: string, decimals: number } {
+export function getShadeTokenBySymbol(symbol: Token): { id: PoolId, symbol: string, decimals: number } {
   const token = _.find(tokens, (shadeToken) => {
       return extractShadeTokenSymbol(shadeToken) === symbol
         &&

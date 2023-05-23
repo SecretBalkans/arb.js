@@ -1,15 +1,14 @@
 import {
   ArbitrageMonitor,
   ArbPath,
-  ArbPathJSON,
-  RouteSegmentInfoWithAmounts
 } from '../arbitrage/dexArbitrage';
-import { DexPool } from '../dex/types/dex-types';
+import {DexProtocolName} from '../dex/types/dex-types';
 import * as https from 'http';
 import * as http from 'http';
 import config from '../config';
 import _ from 'lodash';
-import { fetchTimeout } from '../utils';
+import {fetchTimeout} from '../utils';
+import {ArbPathJSON, RouteSegmentInfo} from '../arbitrage/types';
 
 interface ArbV1Raw {
   amount_bridge: number,
@@ -20,8 +19,8 @@ interface ArbV1Raw {
   dex_1: string,
   id: string
   last_ts: Date,
-  route_0: RouteSegmentInfoWithAmounts[],
-  route_1: RouteSegmentInfoWithAmounts[],
+  route_0: RouteSegmentInfo[],
+  route_1: RouteSegmentInfo[],
   token_0: string,
   token_1: string
   ts: Date
@@ -35,8 +34,8 @@ interface ArbV1 {
   dex0: string,
   dex1: string,
   id: string
-  route0: RouteSegmentInfoWithAmounts[],
-  route1: RouteSegmentInfoWithAmounts[],
+  route0: RouteSegmentInfo[],
+  route1: RouteSegmentInfo[],
   token0: string,
   token1: string
   lastTs: Date,
@@ -148,7 +147,7 @@ export default class ArbMonitorUploader {
           }).catch(console.error.bind(console));
 
           this.uploadManyArbs(toUpload.many).then((res) => {
-            console.log(`manyArbs`, { rows: res.rows, many: res.updateManyArbs.map(r => r.id) });
+            console.log(`manyArbs`, {rows: res.rows, many: res.updateManyArbs.map(r => r.id)});
             res.updateManyArbs.forEach(d => {
               this.persistedArbPaths[d.id] = d.arb;
             });
@@ -276,7 +275,7 @@ mutation updateManyArbTs($arbIds: [String!]! = "", $ts: timestamp! = "") {
 
   }
 
-  arbPathToV1(ap: ArbPath<DexPool, DexPool, any>) {
+  arbPathToV1(ap: ArbPath<DexProtocolName, DexProtocolName, any>) {
     return {
       ...ap.toJSON(),
       token0: ap.pair[0],
