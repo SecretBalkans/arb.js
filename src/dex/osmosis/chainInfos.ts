@@ -28,9 +28,7 @@ export type SimplifiedChainInfo = Omit<
   ChainInfo,
   "stakeCurrency" | "feeCurrencies"
 > & {
-  currencies: Array<
-    AppCurrency
-  >;
+  currencies: AppCurrency[];
 };
 
 const chainInfos = (
@@ -181,7 +179,7 @@ const chainInfos = (
     {
       rpc: "https://rpc-secret.keplr.app",
       rest: "https://lcd-secret.keplr.app",
-      //rest: "https://api.scrt.network/",
+      // rest: "https://api.scrt.network/",
       chainId: "secret-4",
       chainName: "Secret Network",
       bip44: {
@@ -211,7 +209,7 @@ const chainInfos = (
           coinMinimalDenom:
             "cw20:secret12rcvz0umvk875kd6a803txhtlu7y0pnd73kcej:ALTER",
           coinDecimals: 6,
-          //coinGeckoId: "alter",
+          // coinGeckoId: "alter",
           coinGeckoId: "pool:alter",
           coinImageUrl: "/tokens/alter.svg",
         },
@@ -242,7 +240,7 @@ const chainInfos = (
           coinMinimalDenom:
             "cw20:secret1qfql357amn448duf5gvp9gr48sxx9tsnhupu3d:SHD",
           coinDecimals: 8,
-          //coinGeckoId: "shade-protocol",
+          // coinGeckoId: "shade-protocol",
           coinGeckoId: "pool:shdold",
           coinImageUrl: "/tokens/shdold.svg",
         },
@@ -253,7 +251,7 @@ const chainInfos = (
           coinMinimalDenom:
             "cw20:secret153wu605vvp934xhd4k9dtd640zsep5jkesstdm:SHD",
           coinDecimals: 8,
-          //coinGeckoId: "shade-protocol",
+          // coinGeckoId: "shade-protocol",
           coinGeckoId: "pool:shd",
           coinImageUrl: "/tokens/shd.svg",
         },
@@ -415,8 +413,8 @@ const chainInfos = (
           coinDenom: "stkATOM",
           coinMinimalDenom: "stk/uatom",
           coinDecimals: 6,
-          // coinGeckoId: "stkatom",
-          coinGeckoId: "pool:stk/uatom",
+          coinGeckoId: "stkatom",
+          // coinGeckoId: "pool:stk/uatom",
           coinImageUrl: "/tokens/stkatom.svg",
         },
       ],
@@ -644,7 +642,7 @@ const chainInfos = (
           coinMinimalDenom:
             "cw20:juno1y9rf7ql6ffwkv02hsgd4yruz23pn4w97p75e2slsnkm0mnamhzysvqnxaq:BLOCK",
           coinDecimals: 6,
-          //coinGeckoId: "pool:block",
+          // coinGeckoId: "pool:block",
           coinImageUrl: "/tokens/block.svg",
         },
         {
@@ -767,7 +765,7 @@ const chainInfos = (
           coinMinimalDenom:
             "cw20:juno1p8x807f6h222ur0vssqy3qk6mcpa40gw2pchquz5atl935t7kvyq894ne3:MUSE",
           coinDecimals: 6,
-          //coinGeckoId: "pool:muse",
+          // coinGeckoId: "pool:muse",
           coinImageUrl: "/tokens/muse.svg",
         },
         {
@@ -789,7 +787,7 @@ const chainInfos = (
           coinMinimalDenom:
             "cw20:juno1rws84uz7969aaa7pej303udhlkt3j9ca0l3egpcae98jwak9quzq8szn2l:PHMN",
           coinDecimals: 6,
-          //coinGeckoId: "posthuman",
+          // coinGeckoId: "posthuman",
           coinGeckoId: "pool:phmn",
           coinImageUrl: "/tokens/phmn.svg",
         },
@@ -1387,7 +1385,7 @@ const chainInfos = (
           coinDenom: "CMDX",
           coinMinimalDenom: "ucmdx",
           coinDecimals: 6,
-          //coinGeckoId: "comdex",
+          // coinGeckoId: "comdex",
           coinGeckoId: "pool:ucmdx",
           coinImageUrl: "/tokens/cmdx.svg",
           isStakeCurrency: true,
@@ -1793,8 +1791,8 @@ const chainInfos = (
           coinDenom: "USDC.grv",
           coinMinimalDenom: "gravity0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           coinDecimals: 6,
-          // coinGeckoId: "usd-coin",
-          coinGeckoId: "pool:uusdc.grv",
+          coinGeckoId: "usd-coin",
+          // coinGeckoId: "pool:uusdc.grv",
           coinImageUrl: "/tokens/usdc.grv.svg",
           pegMechanism: "collateralized",
           isFeeCurrency: true,
@@ -1817,8 +1815,8 @@ const chainInfos = (
           coinDenom: "USDT.grv",
           coinMinimalDenom: "gravity0xdAC17F958D2ee523a2206206994597C13D831ec7",
           coinDecimals: 6,
-          // coinGeckoId: "tether",
-          coinGeckoId: "pool:uusdt.grv",
+          coinGeckoId: "tether",
+          // coinGeckoId: "pool:uusdt.grv",
           coinImageUrl: "/tokens/usdt.grv.svg",
           pegMechanism: "collateralized",
           isFeeCurrency: true,
@@ -1872,7 +1870,7 @@ const chainInfos = (
           coinMinimalDenom: "uctk",
           coinDecimals: 6,
           // coinGeckoId: "shentu",
-          //coinGeckoId: "pool:uctk",
+          // coinGeckoId: "pool:uctk",
           coinImageUrl: "/tokens/ctk.svg",
           isStakeCurrency: true,
           isFeeCurrency: true,
@@ -2181,7 +2179,7 @@ const chainInfos = (
           coinMinimalDenom: "uatolo",
           coinDecimals: 6,
           coinGeckoId: "rizon",
-          //coinGeckoId: "pool:uatolo",
+          // coinGeckoId: "pool:uatolo",
           coinImageUrl: "/tokens/atolo.svg",
           isStakeCurrency: true,
           isFeeCurrency: true,
@@ -2225,7 +2223,7 @@ const chainInfos = (
           coinMinimalDenom: "hard",
           coinDecimals: 6,
           // coinGeckoId: "kava-lend",
-          //coinGeckoId: "pool:hard",
+          // coinGeckoId: "pool:hard",
           coinImageUrl: "/tokens/hard.svg",
         },
         {
@@ -2233,7 +2231,7 @@ const chainInfos = (
           coinMinimalDenom: "swp",
           coinDecimals: 6,
           // coinGeckoId: "kava-swap",
-          //coinGeckoId: "pool:swp",
+          // coinGeckoId: "pool:swp",
           coinImageUrl: "/tokens/swp.svg",
         },
         {
@@ -2241,7 +2239,7 @@ const chainInfos = (
           coinMinimalDenom: "usdx",
           coinDecimals: 6,
           // coinGeckoId: "usdx",
-          //coinGeckoId: "pool:usdx",
+          // coinGeckoId: "pool:usdx",
           coinImageUrl: "/tokens/usdx.svg",
         },
       ],
@@ -2486,7 +2484,7 @@ const chainInfos = (
           coinDenom: "ORAI",
           coinMinimalDenom: "orai",
           coinDecimals: 6,
-          //coinGeckoId: "oraichain-token",
+          // coinGeckoId: "oraichain-token",
           coinGeckoId: "pool:orai",
           coinImageUrl: "/tokens/orai.svg",
           isStakeCurrency: true,
@@ -2559,7 +2557,7 @@ const chainInfos = (
           coinDenom: "IST",
           coinMinimalDenom: "uist",
           coinDecimals: 6,
-          coinGeckoId: "pool:uist",
+          coinGeckoId: "inter-stable-token",
           coinImageUrl: "/tokens/ist.svg",
           isFeeCurrency: true,
           gasPriceStep: {
@@ -2608,7 +2606,7 @@ const chainInfos = (
         {
           coinDenom: "stINJ",
           coinMinimalDenom: "stuinj",
-          coinDecimals: 6,
+          coinDecimals: 18,
           coinGeckoId: "pool:stuinj",
           coinImageUrl: "/tokens/stinj.svg",
         },
@@ -3386,8 +3384,8 @@ chainInfos.push({
       coinDenom: "USDT",
       coinMinimalDenom: "uusdt",
       coinDecimals: 6,
-      // coinGeckoId: "tether",
-      coinGeckoId: "pool:uusdt.grv",
+      coinGeckoId: "tether",
+      // coinGeckoId: "pool:uusdt.grv",
       coinImageUrl: "/tokens/usdt.svg",
     },
     {
@@ -3426,7 +3424,7 @@ chainInfos.push({
       coinDenom: "FIL",
       coinMinimalDenom: "wfil-wei",
       coinDecimals: 18,
-      //coinGeckoId: "filecoin",
+      // coinGeckoId: "filecoin",
       coinGeckoId: "pool:wfil-wei",
       coinImageUrl: "/tokens/fil.svg",
     },
@@ -3505,7 +3503,7 @@ chainInfos.push({
       coinDenom: "DOT",
       coinMinimalDenom: "dot-planck",
       coinDecimals: 10,
-      //coinGeckoId: "polkadot",
+      // coinGeckoId: "polkadot",
       coinGeckoId: "pool:dotplanck.axl",
       coinImageUrl: "/tokens/dot.svg",
     },
@@ -3513,7 +3511,7 @@ chainInfos.push({
       coinDenom: "BNB",
       coinMinimalDenom: "wbnb-wei",
       coinDecimals: 18,
-      //coinGeckoId: "wbnb",
+      // coinGeckoId: "wbnb",
       coinGeckoId: "pool:wbnbwei.axl",
       coinImageUrl: "/tokens/bnb.svg",
     },
@@ -3521,7 +3519,7 @@ chainInfos.push({
       coinDenom: "MATIC",
       coinMinimalDenom: "wmatic-wei",
       coinDecimals: 18,
-      //coinGeckoId: "wmatic",
+      // coinGeckoId: "wmatic",
       coinGeckoId: "pool:wmaticwei.axl",
       coinImageUrl: "/tokens/matic-purple.svg",
     },
@@ -3529,7 +3527,7 @@ chainInfos.push({
       coinDenom: "BUSD",
       coinMinimalDenom: "busd-wei",
       coinDecimals: 18,
-      //coinGeckoId: "binance-usd",
+      // coinGeckoId: "binance-usd",
       coinGeckoId: "pool:busdwei.axl",
       coinImageUrl: "/tokens/busd.svg",
     },
@@ -3537,7 +3535,7 @@ chainInfos.push({
       coinDenom: "AVAX",
       coinMinimalDenom: "wavax-wei",
       coinDecimals: 18,
-      //coinGeckoId: "avalanche-2",
+      // coinGeckoId: "avalanche-2",
       coinGeckoId: "pool:wavaxwei.axl",
       coinImageUrl: "/tokens/avax.svg",
     },
@@ -3545,7 +3543,7 @@ chainInfos.push({
       coinDenom: "FTM",
       coinMinimalDenom: "wftm-wei",
       coinDecimals: 18,
-      //coinGeckoId: "fantom",
+      // coinGeckoId: "fantom",
       coinGeckoId: "pool:wftm-wei",
       coinImageUrl: "/tokens/ftm.svg",
     },

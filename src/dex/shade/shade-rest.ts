@@ -1,24 +1,37 @@
-import { fetchTimeout } from '../../utils';
+/* tslint:disable:one-variable-per-declaration */
+import {fetchTimeout, Logger} from '../../utils';
 import _ from 'lodash';
 import Aigle from 'aigle';
-import { ArbWallet } from '../../wallet/ArbWallet';
-import { convertCoinFromUDenomV2 } from '../../utils';
-import config from "../../config";
+import {ArbWallet} from '../../wallet/ArbWallet';
+import {convertCoinFromUDenomV2} from '../../utils';
+import config from '../../config';
 import https from 'https';
-import { Contract, SnipPoolToken, SecretContractAddress, Snip20Token, StakingContract, TokenPriceInfo } from './types';
-import { Amount } from '../types/dex-types';
+import {
+  ShadeContract,
+  SnipPoolToken,
+  SecretContractAddress,
+  Snip20Token,
+  StakingContract,
+  TokenPriceInfo,
+} from './types';
+import {Amount} from '../types/dex-types';
 import BigNumber from 'bignumber.js';
+import {safeJsonStringify} from '../../utils/safe-json-stringify';
 
-//TODO: Convert to ShadeSDK with init,subscribe functions to keep a
+// TODO: Convert to ShadeSDK with init,subscribe functions to keep a
 // local up to date state of pools,peg,borrows,etc. updated each block and
 // functions to calculate swaps, borrows
 // and finally to implement a common functionality (with other dex's,dapps) for swap, lend, repay, pool, etc.
-let arb = new ArbWallet({
-  secretLcdUrl: 'https://lcd.spartanapi.dev',
+const arb = new ArbWallet({
+  // secretLcdUrl: 'https://lcd.secret.express',
+  secretLcdUrl: 'https://lcd-secret.keplr.app',
+  // secretLcdUrl: 'https://secret-api.lavenderfive.com:443',
   mnemonic: config.secrets.cosmos.mnemonic,
   privateHex: config.secrets.cosmos.privateHex,
-  secretNetworkViewingKey: config.secrets.secret.apiKey
+  secretNetworkViewingKey: config.secrets.secret.apiKey,
 });
+
+const USE_SHADE_API_NO_BLOCKCHAIN_QUERY = false;
 
 export async function getPegPrice(): Promise<number> {
   return (await fetchTimeout('https://8oa7njf3h7.execute-api.us-east-1.amazonaws.com/prod/peg', {}, 10000)).graphData[0].pegPrice;
@@ -29,10 +42,10 @@ export let pairs;
 
 export async function getTokenPrices(): Promise<TokenPriceInfo[]> {
   tokens = tokens || await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/tokens', {
-    agent: shadeApiHttpsAgent
+    agent: shadeApiHttpsAgent,
   });
   return fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/token_prices', {
-    agent: shadeApiHttpsAgent
+    agent: shadeApiHttpsAgent,
   }, 10000);
 }
 
@@ -44,7 +57,7 @@ export class ShadePair {
     public readonly token1: SnipPoolToken,
     public readonly lpTokenInfo?: Snip20Token,
     public readonly rawInfo?: TokenPairInfoRaw,
-    public readonly stakingContract?: Contract | StakingContract) {
+    public readonly stakingContract?: ShadeContract | StakingContract) {
     this.name = lpTokenInfo.symbol;
   }
 
@@ -73,17 +86,27 @@ export class ShadePair {
   }
 }
 
+const logger = new Logger('ShadeRest');
+
 export async function getShadePairs(): Promise<ShadePair[]> {
   const prices = await getTokenPrices();
-  const pairs = await getPairsRaw();
-  return Aigle.mapLimit(pairs, pairs.length, async cachePairInfo => {
-    return await getTokenPairInfo(cachePairInfo, prices);
+  const pairInfoRaws = await getPairsRaw();
+  return Aigle.mapLimit(pairInfoRaws.filter(d => +d.token_0_amount > 10), 5, async cachePairInfo => {
+    for (let i = 0; i < 3; i++) {
+      try {
+        return await getTokenPairInfo(cachePairInfo, prices);
+      } catch (err) {
+        logger.debugOnce('getTokenPairInfo', err);
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    return;
   });
 }
 
 export interface TokenPairInfoRaw {
   id: string;
-  contract: Contract;
+  contract: ShadeContract;
   factory: string;
   /**
    * token_0 : "06180689-1c8e-493d-a19f-71dbc5dddbfc"
@@ -158,9 +181,10 @@ const shadeApiHttpsAgent = new https.Agent({
 });
 
 export async function getPairsRaw(): Promise<TokenPairInfoRaw[]> {
-  pairs = pairs || await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/shadeswap/pairs', {
-    agent: shadeApiHttpsAgent
-  }, 10000);
+  // TODO: do not cache pairs so we use api to resolve amounts instead of LAGGING secret nodes
+  pairs = USE_SHADE_API_NO_BLOCKCHAIN_QUERY || !pairs? await fetchTimeout('https://na36v10ce3.execute-api.us-east-1.amazonaws.com/API-mainnet-STAGE/shadeswap/pairs', {
+    agent: shadeApiHttpsAgent,
+  }, 10000) : pairs;
   return pairs;
 }
 
@@ -169,34 +193,60 @@ function fromDenomString(inputAmount: string, decimals: number): number {
   return +(amount / BigInt(10 ** decimals)).toString();
 }
 
+function getTokenQueryLogInfo(token0: any, token1: any, rawInfo?: any) {
+  return JSON.stringify({
+    token0: token0.name,
+    token1: token1.name, ...(rawInfo ? {contract: rawInfo.contract.address} : {})
+  });
+}
+
 async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInfo[]): Promise<ShadePair> {
-  const lpToken = _.find(tokens, { id: rawInfo.lp_token });
-  const token0 = _.find(tokens, { id: rawInfo.token_0 });
-  const token1 = _.find(tokens, { id: rawInfo.token_1 });
+  const lpToken = _.find(tokens, {id: rawInfo.lp_token});
+  const token0 = _.find(tokens, {id: rawInfo.token_0});
+  const token1 = _.find(tokens, {id: rawInfo.token_1});
+  let tokenInfos;
+  try {
+    tokenInfos = await Aigle.all([
+      arb.querySecretContract<any, {
+        'token_info': Snip20Token
+      }>(lpToken.contract_address, {'token_info': {}}, lpToken.code_hash, true),
+      arb.querySecretContract<any, {
+        'token_info': Snip20Token
+      }>(token0.contract_address, {'token_info': {}}, token0.code_hash, true),
+      arb.querySecretContract<any, {
+        'token_info': Snip20Token
+      }>(token1.contract_address, {'token_info': {}}, token1.code_hash, true),
+    ]);
+  } catch (err) {
+    throw new Error(`Get the token_infos ${getTokenQueryLogInfo(token0, token1)}: ${safeJsonStringify(err)}`);
+  }
+  const [{token_info: lpTokenInfo}, {token_info: t0}, {token_info: t1}] = tokenInfos;
+  let pairInfoResult;
+  try {
+    pairInfoResult = await arb.querySecretContract<any, {
+      'get_pair_info': {
+        amount_0: string,
+        amount_1: string,
+      }
+    }>(rawInfo.contract.address as SecretContractAddress,
+      {'get_pair_info': {}},
+      rawInfo.contract.code_hash, USE_SHADE_API_NO_BLOCKCHAIN_QUERY);
+  } catch (err) {
+    throw new Error(`Get the get_pair_info ${getTokenQueryLogInfo(token0, token1, rawInfo)} ${err.message} ${err.stack}`);
+  }
+  const {get_pair_info: pairInfo} = pairInfoResult;
+  const price0 = +_.find(prices, {id: token0.price_id})?.value;
+  const price1 = +_.find(prices, {id: token1.price_id})?.value;
 
-  const [{ token_info: lpTokenInfo }, { token_info: t0 }, { token_info: t1 }] = await Aigle.all([arb.querySecretContract<any, {
-    'token_info': Snip20Token
-  }>(lpToken.contract_address, { 'token_info': {} }, lpToken.code_hash, true),
-    arb.querySecretContract<any, {
-      'token_info': Snip20Token
-    }>(token0.contract_address, { 'token_info': {} }, token0.code_hash, true),
-    arb.querySecretContract<any, {
-      'token_info': Snip20Token
-    }>(token1.contract_address, { 'token_info': {} }, token1.code_hash, true),
-  ]);
-  const { get_pair_info: pairInfo} = await arb.querySecretContract<any, {
-    'get_pair_info': {
-      amount_0: string,
-      amount_1: string,
-    }
-  }>(rawInfo.contract.address as SecretContractAddress, { 'get_pair_info': {} }, rawInfo.contract.code_hash)
-  const price0 = +_.find(prices, { id: token0.price_id })?.value;
-  const price1 = +_.find(prices, { id: token1.price_id })?.value;
-
-  // Update cached rawInfo amounts
-  rawInfo.token_0_amount = pairInfo.amount_0;
-  rawInfo.token_1_amount = pairInfo.amount_1;
-
+  if(USE_SHADE_API_NO_BLOCKCHAIN_QUERY) {
+    // Use shade api
+    pairInfo.amount_0 = rawInfo.token_0_amount;
+    pairInfo.amount_1 = rawInfo.token_1_amount;
+  } else {
+    // Update cached rawInfo amounts
+    rawInfo.token_0_amount = pairInfo.amount_0;
+    rawInfo.token_1_amount = pairInfo.amount_1;
+  }
   return new ShadePair({
     ...t0,
     address: token0.contract_address,
@@ -209,17 +259,21 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
     code_hash: token1.code_hash,
     amount: fromDenomString(pairInfo.amount_1, t1.decimals),
     price: price1,
-  }, lpTokenInfo, rawInfo, { address: rawInfo.staking_contract.address as SecretContractAddress, code_hash: rawInfo.staking_contract.code_hash});
+  }, lpTokenInfo, rawInfo, {
+    address: rawInfo.staking_contract.address as SecretContractAddress,
+    code_hash: rawInfo.staking_contract.code_hash,
+  });
 }
 
 export const useTokens = () => ({
   getTokenDecimals(tokenId: string): number {
-    return _.find(tokens, { id: tokenId }).decimals;
+    return _.find(tokens, {id: tokenId}).decimals;
   },
-})
+});
 
 export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[]): { [p: string]: ShadeRoutePool } {
   return rawPairsInfo.reduce((t, n) => {
+    try {
       const o = n.volume ? {
         volume: n.volume.volume,
         volume24HourChange: n.volume.volume_24h_change,
@@ -280,7 +334,10 @@ export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[]): { [p: string]: 
           },
         }),
       };
-    }, {});
+    } catch(err) {
+      logger.log(err.message);
+    }
+  }, {});
 }
 
 export interface ShadeRoutePool {
@@ -302,7 +359,21 @@ export interface ShadeRoutePool {
 function parseRawPool(e): ShadeRoutePool {
   const t = useTokens()
     , {getTokenDecimals: getTokenDecimals} = t
-    , {id: o, contract: u, stakingContract: l, rewardTokens: k, lpTokenId: O, token0Id: v, token0AmountRaw: _, token1Id: d, token1AmountRaw: g, fees: m, stableParams: y, flags: b, metrics: C} = e
+    , {
+    id: o,
+    contract: u,
+    stakingContract: l,
+    rewardTokens: k,
+    lpTokenId: O,
+    token0Id: v,
+    token0AmountRaw: t0amnt,
+    token1Id: d,
+    token1AmountRaw: g,
+    fees: m,
+    stableParams: y,
+    flags: b,
+    metrics: C,
+  } = e
     , {liquidityRaw: P, volume: w, apy: E, currency: U} = C
     , T = getTokenDecimals(v)
     , te = getTokenDecimals(d)
@@ -311,7 +382,7 @@ function parseRawPool(e): ShadeRoutePool {
     id: o,
     contract: u,
     token0Id: v,
-    token0Amount: convertCoinFromUDenomV2(_, T),
+    token0Amount: convertCoinFromUDenomV2(t0amnt, T),
     token1Id: d,
     token1Amount: convertCoinFromUDenomV2(g, te),
     lpTokenId: O,
@@ -324,7 +395,7 @@ function parseRawPool(e): ShadeRoutePool {
       liquidity: convertCoinFromUDenomV2(P, $),
       volume: w,
       apy: E,
-      currency: U
-    }
-  }
+      currency: U,
+    },
+  };
 }

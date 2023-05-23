@@ -18,8 +18,8 @@ export function toTokenId(shadeToken: SnipPoolToken): Token {
 }
 
 export function getShadeTokenById(id: string) {
-  const token = _.find(tokens, (token) => {
-    return token.id === id
+  const token = _.find(tokens, (shadeToken) => {
+    return shadeToken.id === id
       &&
       // Check that it is used in the shade pairs
       !!_.find(pairs, (d) => [d.token_0, d.token_1].includes(id));
@@ -30,9 +30,10 @@ export function getShadeTokenById(id: string) {
   return token;
 
 }
-export function extractShadeTokenSymbolById(id: string) {
-  const token = _.find(tokens, (token) => {
-    return token.id === id
+
+function getShadeTokenInfoById(id: string) {
+  const token = _.find(tokens, (shadeToken) => {
+    return shadeToken.id === id
       &&
       // Check that it is used in the shade pairs
       !!_.find(pairs, (d) => [d.token_0, d.token_1].includes(id));
@@ -40,12 +41,17 @@ export function extractShadeTokenSymbolById(id: string) {
   if (!token) {
     throw new Error(`No Shade token wih id=${id} found in token & pairs registry. Fix search probably`);
   }
+  return token;
+}
+
+export function extractShadeTokenSymbolById(id: string) {
+  const token = getShadeTokenInfoById(id);
   return extractShadeTokenSymbol(token);
 
 }
 
 function extractShadeTokenSymbol(shadeToken) {
-  return _.trimStart(shadeToken.symbol.replace('st', '_st$'), 'as').replace('.axl','').replace('-', '').replace('_st$', 'st');
+  return _.trimStart(shadeToken.symbol.replace('stk', '_stk^').replace('st', '_st$'), 'as').replace('.axl','').replace('-', '').replace('_st$', 'st').replace('_stk^', 'stk');
 }
 
 export function getShadeTokenBySymbol(symbol: Token): { id: string, symbol: string, decimals: number } {

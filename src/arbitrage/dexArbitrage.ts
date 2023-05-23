@@ -1,3 +1,4 @@
+/* tslint:disable:max-classes-per-file one-variable-per-declaration */
 import {
   Amount,
   DexPool,
@@ -13,12 +14,26 @@ import {
 } from '../dex/types/dex-types';
 
 import _ from 'lodash';
-import { combineLatest, Observable, ObservedValueOf } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
-import { Logger } from '../utils';
+import {combineLatest, Observable, ObservedValueOf} from 'rxjs';
+import {filter, map} from 'rxjs/operators';
+import {Logger} from '../utils';
 import BigNumber from 'bignumber.js';
+import {RawShadeContract, ShadeContract} from '../dex/shade/types';
 
 const logger = new Logger('ArbitrageInternal');
+
+export type RouteSegmentInfoWithAmounts = {
+  info: RouteSegmentInfo,
+  amount0: string,
+  amount1: string
+}
+
+// TODO: fix this type to be debend on dexProtocolName
+export type RouteSegmentInfo =/*Osmosis*/ PoolId | /*Shade*/{
+  t0: RawShadeContract & { logo_path: string, symbol: string },
+  t1: RawShadeContract & { logo_path: string, symbol: string },
+  lp: RawShadeContract,
+}
 
 export interface ArbPathJSON {
   id: string,
@@ -28,11 +43,11 @@ export interface ArbPathJSON {
   amountBridge: number;
   amountOut: number;
   bridge: any[];
-  route0: PoolId[],
-  route1: PoolId[];
+  route0: RouteSegmentInfoWithAmounts[],
+  route1: RouteSegmentInfoWithAmounts[];
   error1: string;
   error0: string;
-  pair: [SwapToken,SwapToken]
+  pair: [SwapToken, SwapToken]
 }
 
 export class ArbPath<T extends DexPool, K extends DexPool, B> {
@@ -107,8 +122,16 @@ export class ArbPath<T extends DexPool, K extends DexPool, B> {
       pair: this.pair,
       dex0: this.dex0.name,
       dex1: this.dex1.name,
-      route0: this.route0?.map(r => r.pool.poolId),
-      route1: this.route1?.map(r => r.pool.poolId),
+      route0: this.route0?.map(r => ({
+        info: r.pool.internalPool as unknown as RouteSegmentInfo,
+        amount0: r.pool.token0Amount.toFixed(0),
+        amount1: r.pool.token1Amount.toFixed(0)
+      })),
+      route1: this.route1?.map(r => ({
+        info: r.pool.internalPool as unknown as RouteSegmentInfo,
+        amount0: r.pool.token0Amount.toFixed(0),
+        amount1: r.pool.token1Amount.toFixed(0)
+      })),
       bridge: this.bridge,
       amountIn: this.amountIn?.toNumber(),
       amountBridge: this.amountBridge?.toNumber(),
@@ -159,7 +182,7 @@ export class ArbitrageMonitor {
         pair,
       });
     }
-    let {
+    const {
       amountOut,
       route: route1,
       internalSwapError: error1,
@@ -221,7 +244,7 @@ export class ArbitrageMonitor {
         const dex0 = dexProtocols[0].dex;
         const dex1 = dexProtocols[1].dex;
         console.time('Total');
-        let isInitial = !d0poolMap || !d1poolMap;
+        const isInitial = !d0poolMap || !d1poolMap;
         if (!d0poolMap) {
           const poolsMap = dex0.getPoolsMap(this.pairs);
           d0poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
@@ -238,9 +261,8 @@ export class ArbitrageMonitor {
         });
         const result = _.map(changedPairs, changedPair => {
           console.time(changedPair.join('-'));
-          const baseAmount = this.getCurrentCapacity({ pair: changedPair, dex0, dex1 });
+          const baseAmount = this.getCurrentCapacity({pair: changedPair, dex0, dex1});
           const arbPath = _.maxBy([
-            // TODO: generate dex pairs based on store.subscriptions to support more dexs
             this.calcDexArbOut(baseAmount, changedPair, dex0, dex1),
             this.calcDexArbOut(baseAmount, changedPair, dex1, dex0),
             this.calcDexArbOut(baseAmount, reversePair(changedPair), dex0, dex1),
@@ -277,7 +299,7 @@ export class ArbitrageMonitor {
                                dex0,
                                dex1,
                              }: { pair: ArbPair, dex0: DexProtocol<DexPool>, dex1: DexProtocol<DexPool> }): Amount {
-    return this.capacityMap[this.getCapacityKey({ pair, dex0, dex1 })] || this.DEFAULT_BASE_AMOUNT;
+    return this.capacityMap[this.getCapacityKey({pair, dex0, dex1})] || this.DEFAULT_BASE_AMOUNT;
   }
 
   private getCapacityKey({
@@ -294,14 +316,14 @@ export class ArbitrageMonitor {
 }
 
 class PersistedPoolData<T extends DexPool> {
-  constructor({ pool, height }) {
-    this.update({ pool, height });
+  constructor({pool, height}) {
+    this.update({pool, height});
   }
 
   pool: IPool<T> | null;
   height: number | null;
 
-  update({ pool, height }) {
+  update({pool, height}) {
     this.pool = pool;
     this.height = height;
   }
@@ -341,11 +363,11 @@ export class DexStore {
   private ensureDexPool(dex: DexProtocolName, poolId: PoolId): PersistedPoolData<DexPool> {
     const dexPoolKey = this.getDexPoolKey(dex, poolId);
     return _.get(this.dexPools, dexPoolKey) ||
-      _.set(this.dexPools, dexPoolKey, new PersistedPoolData({ height: null, pool: null }));
+      _.set(this.dexPools, dexPoolKey, new PersistedPoolData({height: null, pool: null}));
   }
 
   attachLivePoolStore(dex: DexProtocol<DexPool>) {
-    const subscription = dex.subscribeToPoolsUpdate().pipe(filter(({ height }) => {
+    const subscription = dex.subscribeToPoolsUpdate().pipe(filter(({height}) => {
       let shouldEmit = false;
       // We update the latest heights for each dex subscription to avoid emitting more than one event for each dex block update
 
@@ -369,9 +391,9 @@ export class DexStore {
   }
 
   private updateDexPool(dex: DexProtocolName, poolId: PoolId, newPoolData: IPool<DexPool>, height: number): boolean {
-    const { pool: persistedDexPoolInfo, height: persistedHeight } = this.ensureDexPool(dex, poolId);
+    const {pool: persistedDexPoolInfo, height: persistedHeight} = this.ensureDexPool(dex, poolId);
     if (!persistedDexPoolInfo || ((persistedDexPoolInfo.token0Amount.toString() !== newPoolData.token0Amount.toString() || persistedDexPoolInfo.token1Amount.toString() !== newPoolData.token1Amount.toString()) && persistedHeight < height)) {
-      this.ensureDexPool(dex, poolId).update(({ pool: newPoolData, height }));
+      this.ensureDexPool(dex, poolId).update(({pool: newPoolData, height}));
       return true;
     } else {
       return false;

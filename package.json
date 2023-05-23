@@ -5,7 +5,7 @@
     "build:dev": "npm run build:base; cp .secrets.js ./build",
     "build:prod": "npm run build:base;",
     "build:base": "rm -rf ./build; tsc -p tsconfig.json; cp ./package.json ./build",
-    "test": "ts-node src/test.ts",
+    "test": "ts-node src/test.ts.excl",
     "test-arb-path": "ts-node src/test-arb-path.ts",
     "testRouter": "ts-node src/testRouter.ts"
   },

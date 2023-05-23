@@ -1,6 +1,6 @@
 import { Tendermint34Client } from '@cosmjs/tendermint-rpc';
 import { Observable } from 'rxjs';
-export default function cosmosObserver(rpcEndpoint: string, retryTime = 300): Observable<number> {
+export default function cosmosObserver(rpcEndpoint: string, retryTime = 500): Observable<number> {
   return new Observable(observer => {
     (async () => {
       const t34Client = await Tendermint34Client.connect(rpcEndpoint);
@@ -12,6 +12,7 @@ export default function cosmosObserver(rpcEndpoint: string, retryTime = 300): Ob
         do {
           try {
             lastBlock = (await t34Client.block()) || lastBlock;
+            // tslint:disable-next-line:no-empty
           } catch {}
           if (lastBlock && (!prevHeight || prevHeight < lastBlock.block.header.height)) {
             prevHeight = lastBlock.block.header.height;

@@ -11,3 +11,4 @@ package-lock.json
 !.vscode/tasks.js
 .vscode
 isolate*
+*.excl

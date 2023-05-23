@@ -1,4 +1,9 @@
-import { ArbitrageMonitor, ArbPath, ArbPathJSON } from '../arbitrage/dexArbitrage';
+import {
+  ArbitrageMonitor,
+  ArbPath,
+  ArbPathJSON,
+  RouteSegmentInfoWithAmounts
+} from '../arbitrage/dexArbitrage';
 import { DexPool } from '../dex/types/dex-types';
 import * as https from 'http';
 import * as http from 'http';
@@ -15,8 +20,8 @@ interface ArbV1Raw {
   dex_1: string,
   id: string
   last_ts: Date,
-  route_0: any[],
-  route_1: any[],
+  route_0: RouteSegmentInfoWithAmounts[],
+  route_1: RouteSegmentInfoWithAmounts[],
   token_0: string,
   token_1: string
   ts: Date
@@ -30,8 +35,8 @@ interface ArbV1 {
   dex0: string,
   dex1: string,
   id: string
-  route0: string[],
-  route1: string[],
+  route0: RouteSegmentInfoWithAmounts[],
+  route1: RouteSegmentInfoWithAmounts[],
   token0: string,
   token1: string
   lastTs: Date,
@@ -135,11 +140,11 @@ export default class ArbMonitorUploader {
               toUpload.ts.push(id)
             }
           });
+          toUpload.ts.forEach(id => {
+            this.persistedArbPaths[id].ts = ts;
+          });
           this.updateManyArbTs(toUpload.ts, ts).then((res) => {
             console.log(res);
-            toUpload.ts.forEach(id => {
-              this.persistedArbPaths[id].ts = ts;
-            });
           }).catch(console.error.bind(console));
 
           this.uploadManyArbs(toUpload.many).then((res) => {
@@ -159,13 +164,13 @@ export default class ArbMonitorUploader {
   async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1 }[] }> {
     const result = await execute(`
   mutation upsertManyArbs ($objects: [arb_v1_insert_input!]!) {
-    insert_arb_v1(objects: $objects, 
+    insert_arb_v1(objects: $objects,
       on_conflict: {
-        constraint: arb_v1_pkey, 
-        update_columns: [ 
-          amount_in, amount_bridge, amount_out, 
-          dex_0, dex_1, 
-          token_0, token_1,  
+        constraint: arb_v1_pkey,
+        update_columns: [
+          amount_in, amount_bridge, amount_out,
+          dex_0, dex_1,
+          token_0, token_1,
           route_0, route_1,
           ts, last_ts
         ]
@@ -195,22 +200,22 @@ export default class ArbMonitorUploader {
 mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp! = "", $amount_bridge: float8 = "$amount_bridge", $amount_in: float8 = "", $amount_out: float8 = "", $dex_0: String = "", $bridge: jsonb = "", $dex_1: String = "", $route_1: jsonb = "", $route_0: jsonb = "", $token_0: String = "", $token_1: String = "") {
   insert_arb_v1_one(
     object: {
-      amount_bridge: $amount_bridge, 
-      amount_in: $amount_in, 
-      amount_out: $amount_out, 
-      bridge: $bridge, 
-      dex_0: $dex_0, 
-      dex_1: $dex_1, 
-      id: $id, 
+      amount_bridge: $amount_bridge,
+      amount_in: $amount_in,
+      amount_out: $amount_out,
+      bridge: $bridge,
+      dex_0: $dex_0,
+      dex_1: $dex_1,
+      id: $id,
       last_ts: $last_ts,
-      route_0: $route_0, 
-      token_0: $token_0, 
-      route_1: $route_1, 
-      token_1: $token_1, 
+      route_0: $route_0,
+      token_0: $token_0,
+      route_1: $route_1,
+      token_1: $token_1,
       ts: $ts
-    }, 
-    on_conflict: { 
-      constraint: arb_v1_pkey, 
+    },
+    on_conflict: {
+      constraint: arb_v1_pkey,
       update_columns: [
         amount_bridge,
         amount_in,
@@ -225,7 +230,7 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
         route_1,
         token_1,
         ts
-      ] 
+      ]
     }) {
       ts
       id

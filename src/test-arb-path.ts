@@ -8,7 +8,7 @@ const logger = new Logger('ArbM');
 (async () => {
   const dexStore = new DexStore([
     new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
-    new ShadeSwap('https://rpc-secret.whispernode.com:443')
+    new ShadeSwap('https://secretnetwork-rpc.lavenderfive.com:443')
     ]
   );
   /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
@@ -37,7 +37,10 @@ const logger = new Logger('ArbM');
     [SwapToken.stATOM, SwapToken.ATOM],
     [SwapToken.stOSMO, SwapToken.OSMO],
     [SwapToken.stJUNO, SwapToken.JUNO],
-    [SwapToken.stINJ, SwapToken.INJ],
+    [SwapToken.INJ, SwapToken.stINJ],
+    [SwapToken.stkATOM, SwapToken.stkATOM],
+    [SwapToken.stkATOM, SwapToken.USDC],
+    [SwapToken.ATOM, SwapToken.stkATOM],
     [SwapToken.INJ, SwapToken.SCRT],
     [SwapToken.INJ, SwapToken.USDC],
   ]);

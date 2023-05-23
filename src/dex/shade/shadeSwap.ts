@@ -1,3 +1,4 @@
+/* tslint:disable */
 import {
   Amount,
   DexProtocol,
@@ -9,7 +10,7 @@ import {
   SwapTokenMap,
   Token,
 } from '../types/dex-types';
-import { extractShadeTokenSymbolById, getShadeTokenBySymbol, toTokenId } from './tokens';
+import {extractShadeTokenSymbolById, getShadeTokenById, getShadeTokenBySymbol, toTokenId} from './tokens';
 import {
   calculateStableSwapPriceImpactInputToken0,
   calculateStableSwapPriceImpactInputToken1,
@@ -26,12 +27,13 @@ import {
   stableSwapToken0ToToken1InPool,
   stableSwapToken1ToToken0InPool, validateTradeSize,
 } from './shade-calc';
-import { convertCoinFromUDenomV2, convertCoinToUDenomV2, Logger } from '../../utils';
-import { Observable } from 'rxjs';
+import {convertCoinFromUDenomV2, convertCoinToUDenomV2, Logger} from '../../utils';
+import {Observable} from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
-import { getShadePairs, parsePoolsRaw, ShadePair, ShadeRoutePool, useTokens } from './shade-rest';
+import {getShadePairs, parsePoolsRaw, ShadePair, ShadeRoutePool, TokenPairInfoRaw, useTokens} from './shade-rest';
 import _ from 'lodash';
 import BigNumber from 'bignumber.js';
+
 const logger = new Logger('ShadeSwap')
 export default class ShadeSwap extends DexProtocol<ShadePair> {
   public name = 'shade' as DexProtocolName;
@@ -57,7 +59,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       //  we need to split big routes into two smaller ones and execute it into
       //  two messages and thus support bigger (7-8-more?) routes
       //  as they can often give better arb
-      pools: _.map(poolsHint, p => (p?.rawInfo?.id || p['poolId'] || p['id']) as PoolId),
+      pools: _.map(poolsHint, (p: any) => (p?.rawInfo?.id || p.poolId || p.id) as PoolId),
     });
     return route ? {
       route: route.route.map(r => ({
@@ -68,8 +70,12 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
           token0Amount: r.token0Amount,
           token1Amount: r.token1Amount,
           dex: 'shade',
-          internalPool: null, // TODO: shade internal pool info
-        },
+          internalPool: {
+            t0: _.pick(getShadeTokenById(r.token0Id), ['contract_address', 'code_hash', 'logo_path', 'symbol']),
+            t1: _.pick(getShadeTokenById(r.token1Id), ['contract_address', 'code_hash', 'logo_path', 'symbol']),
+            lp: r.contract,
+          },// TODO: fix this mess and unify ShadePair type and lp contract data
+        } as any,
       })),
       amountOut: convertCoinFromUDenomV2(route.quoteOutputAmount, endingToken.decimals),
     } : null;
@@ -94,9 +100,9 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
     const poolsMap: { [p: PoolId]: ShadeRoutePool } = pools.length ? _.pick(this.routePairsById, pools) : this.routePairsById;
 
     const rawPaths = findShadePaths({
-      startingTokenId: startingTokenId,
-      endingTokenId: endingTokenId,
-      maxHops: maxHops,
+      startingTokenId,
+      endingTokenId,
+      maxHops,
       pools: poolsMap,
     });
     if (rawPaths.length === 0) {
@@ -108,7 +114,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
           try {
             const pathCalculation = this.calculatePathOutcome({
               startingTokenAmount: tokenAmount,
-              startingTokenId: startingTokenId,
+              startingTokenId,
               path: currentPath,
             });
             return agg.push(pathCalculation),
@@ -118,20 +124,19 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
             return agg;
           }
         }, [])
-        .sort((d, _) => d.quoteOutputAmount.isGreaterThan(_.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(_.quoteOutputAmount) ? 1 : 0);
+        .sort((d, o) => d.quoteOutputAmount.isGreaterThan(o.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(o.quoteOutputAmount) ? 1 : 0);
     } else {
-      const $ = rawPaths.reduce((d, _) => {
+      const $ = rawPaths.reduce((d, path) => {
           try {
             const D = this.calculatePathQuotaByEnding({
               endingTokenAmount: tokenAmount,
-              endingTokenId: endingTokenId,
-              path: _,
+              endingTokenId,
+              path,
             });
             return d.push(D),
               d;
           } catch (err) {
             console.error(err);
-            debugger;
             return d;
           }
         }
@@ -139,22 +144,23 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       if ($.length === 0) {
         return [];
       }
-      const F = $.reduce((d, _) => d.inputAmount.isLessThan(_.inputAmount) ? d : _, $[0])
+      const F = $.reduce((d, o) => d.inputAmount.isLessThan(o.inputAmount) ? d : o, $[0])
         , P = F.inputAmount;
       return rawPaths.map(path => this.calculatePathOutcome({
         startingTokenAmount: P,
-        startingTokenId: startingTokenId,
-        path: path,
+        startingTokenId,
+        path,
       })).map(d => JSON.stringify(d.route) === JSON.stringify(F.route) ? F : d)
-        .sort((d, _) => JSON.stringify(d.route) === JSON.stringify(F.route) ? -1 : JSON.stringify(_.route) === JSON.stringify(F.route) ? 1 : d.quoteOutputAmount.isGreaterThan(_.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(_.quoteOutputAmount) ? 1 : 0);
+        .sort((d, o) => JSON.stringify(d.route) === JSON.stringify(F.route) ? -1 : JSON.stringify(o.route) === JSON.stringify(F.route) ? 1 : d.quoteOutputAmount.isGreaterThan(o.quoteOutputAmount) ? -1 : d.quoteOutputAmount.isLessThan(o.quoteOutputAmount) ? 1 : 0);
     }
   }
+
   calculatePathQuotaByEnding({
-                                        endingTokenAmount: endingTokenAmount,
-                                        endingTokenId: endingTokenId,
-                                        path: path,
-                                      }) {
-    const { getTokenDecimals: getTokenDecimals } = useTokens()
+                               endingTokenAmount: endingTokenAmount,
+                               endingTokenId: endingTokenId,
+                               path: path,
+                             }) {
+    const {getTokenDecimals: getTokenDecimals} = useTokens()
       , {
       inputTokenId: sourceTokenId,
       quoteInputAmount: inputAmount,
@@ -296,40 +302,49 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
       hops: [],
     });
     return {
-      inputAmount: inputAmount,
+      inputAmount,
       quoteOutputAmount: endingTokenAmount,
-      quoteShadeDaoFee: quoteShadeDaoFee,
+      quoteShadeDaoFee,
       quoteLPFee: quoteLpFee,
-      priceImpact: priceImpact,
-      sourceTokenId: sourceTokenId,
+      priceImpact,
+      sourceTokenId,
       targetTokenId: endingTokenId,
       route: hopsButAlsoRouteUnclear,
     };
   }
 
-  public override subscribeToPoolsUpdate(retryTime = 300): Observable<{ pools: IPool<ShadePair>[]; height: number }> {
+  private isFetchingShadePairs = false;
+
+  public override subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<ShadePair>[]; height: number }> {
     return new Observable<{ pools: IPool<ShadePair>[], height: number }>(observer => {
       createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => {
-        const b = performance.now()
-        getShadePairs()
-          .then((shadePairs: ShadePair[]) => {
-            const latestPools = shadePairs.map(sp => ({
-              poolId: sp.name as PoolId,
-              dex: 'shade' as DexProtocolName,
-              token0Id: toTokenId(sp.token0),
-              token0Amount: BigNumber(sp.token0.amount),
-              token1Id: toTokenId(sp.token1),
-              token1Amount: BigNumber(sp.token1.amount),
-              internalPool: sp,
-            }));
-            this.pools = latestPools;
-            this.routePairsById = parsePoolsRaw(_.map(shadePairs, 'rawInfo'));
-            console.log(performance.now() - b);
-            return observer.next({
-              pools: latestPools,
-              height: blockHeight,
-            });
-          }).catch(console.error);
+        if (!this.isFetchingShadePairs) {
+          const b = performance.now()
+          this.isFetchingShadePairs = true;
+          getShadePairs()
+            .then((shadePairs: ShadePair[]) => {
+              const latestPools = _.compact(shadePairs).map(sp => ({
+                poolId: sp.name as PoolId,
+                dex: 'shade' as DexProtocolName,
+                token0Id: toTokenId(sp.token0),
+                token0Amount: BigNumber(sp.token0.amount),
+                token1Id: toTokenId(sp.token1),
+                token1Amount: BigNumber(sp.token1.amount),
+                internalPool: sp,
+              }));
+              this.pools = latestPools;
+              this.routePairsById = parsePoolsRaw(_.map(shadePairs, 'rawInfo'));
+              console.log('ShadePairs', performance.now() - b);
+              setImmediate(() => {
+                observer.next({
+                  pools: latestPools,
+                  height: blockHeight,
+                });
+              })
+            }).catch(console.error).then(() => {
+            this.isFetchingShadePairs = false;
+          });
+        }
       }, console.error);
     });
   }
@@ -353,7 +368,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
                                  path: path,
                                }) {
     const g = useTokens()
-      , { getTokenDecimals: getTokenDecimals } = g
+      , {getTokenDecimals: getTokenDecimals} = g
       , pathReduceResult = path.reduce((pathSegment, poolId) => {
         const {
           outputTokenId: outputTokenId,
@@ -380,7 +395,7 @@ export default class ShadeSwap extends DexProtocol<ShadePair> {
         if (this.isStablePool(poolId))
           if (outputTokenId === poolPairInfo.token0Id && poolPairInfo.stableParams !== null) {
             const stablePoolParams = {
-              inputToken0Amount: inputToken0Amount,
+              inputToken0Amount,
               poolToken0Amount: poolPairInfo.token0Amount,
               poolToken1Amount: poolPairInfo.token1Amount,
               priceRatio: poolPairInfo.stableParams.priceRatio,

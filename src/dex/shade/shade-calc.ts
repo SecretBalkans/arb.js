@@ -1,3 +1,4 @@
+/* tslint:disable:one-variable-per-declaration */
 // noinspection CommaExpressionJS
 
 import BigNumber from 'bignumber.js';
@@ -287,7 +288,7 @@ export function findShadePaths({
 }): any[] {
   const tmpArr = []
     , result = []
-    , someSet = new Set;
+    , someSet = new Set();
 
   function theFunction(f, someIndex) {
     if (!(someIndex > maxHops)) {
@@ -296,6 +297,7 @@ export function findShadePaths({
         return;
       }
       Object.entries(pools).forEach(([F, P]: any) => {
+        // tslint:disable-next-line:no-unused-expression
           someSet.has(F) || (P.token0Id === f || P.token1Id === f) && (tmpArr.push(F),
             someSet.add(F),
             P.token0Id === f ? theFunction(P.token1Id, someIndex + 1) : theFunction(P.token0Id, someIndex + 1),
@@ -566,7 +568,6 @@ function S(i, e, t, n, o, s, a) {
     if (!o || u.isGreaterThanOrEqualTo(0))
       return u;
   } catch (u) {
-    debugger;
     if (!(u instanceof NewtonMethodError))
       throw u;
   }
@@ -592,6 +593,7 @@ function A(i, e, t, n, o) {
     r = r.multipliedBy(BigNumber(.5));
     const u = l.plus(r)
       , p = i(u);
+    // tslint:disable-next-line:no-conditional-assignment
     if (s.multipliedBy(p).isGreaterThanOrEqualTo(0) && (l = u),
     p || r.abs().isLessThanOrEqualTo(n))
       return u;
@@ -607,6 +609,7 @@ function J(i, e, t, n, o) {
       , d = e(s);
     if (d.isEqualTo(0))
       throw new NewtonMethodError('Newton encountered slope of 0');
+    // tslint:disable-next-line:no-conditional-assignment
     if (s = s.minus(l.dividedBy(d)),
       s.minus(r).abs().isLessThanOrEqualTo(n))
       return s;
@@ -614,6 +617,7 @@ function J(i, e, t, n, o) {
   throw new NewtonMethodError('Newton exceeded max iterations');
 }
 
+// tslint:disable-next-line:max-classes-per-file
 class NewtonMethodError extends Error {
   constructor(e) {
     super(e),

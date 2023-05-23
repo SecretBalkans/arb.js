@@ -21,6 +21,7 @@
   ],
   "exclude": [
     "build",
+    "*.excl",
     "node_modules",
     ".secrets.js"
   ]

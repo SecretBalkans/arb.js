@@ -36,20 +36,20 @@ export default class OsmosisSwap extends DexProtocol<Pool> {
 
     const tokenInAmount = bigInteger(amountIn.multipliedBy(10 ** tokenInOsmoDecimals).toFixed(0));
     const [osmo] = calculateBestOsmosisSwapRoute({
-      tokenInAmount: tokenInAmount,
+      tokenInAmount,
       tokenOutDenom: tokenOutDenomOsmo,
       tokenInDenom: tokenInDenomOsmo,
     });
 
     const amountOut = convertCoinFromUDenomV2(osmo?.out?.toString(), tokenOutOsmoDecimals);
     return {
-      amountOut: amountOut,
+      amountOut,
       route: osmo?.pools?.map(pool => ({
         pool: {
           poolId: pool.id as PoolId,
-          token0Amount: BigNumber(0),
-          token1Amount: BigNumber(0), // TODO: calculate token amounts in internal routes maybe ?
-          internalPool: pool,
+          token0Amount: BigNumber(pool.poolAssets[0].amount.toString()),
+          token1Amount: BigNumber(pool.poolAssets[1].amount.toString()), // TODO: calculate token amounts in internal routes maybe ?
+          internalPool: pool.id as unknown as any, // TODO: fix this
           dex: 'osmosis',
           token0Id: toTokenId(tokenInDenomOsmo),
           token1Id: toTokenId(tokenOutDenomOsmo),
@@ -58,7 +58,7 @@ export default class OsmosisSwap extends DexProtocol<Pool> {
     };
   }
 
-  public override subscribeToPoolsUpdate(retryTime = 300): Observable<{ pools: IPool<Pool>[], height: number }> {
+  public override subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<Pool>[], height: number }> {
     return new Observable<{ pools: IPool<Pool>[], height: number }>(observer => {
       createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => getOsmoPools()
         .then(osmoPools => {
@@ -72,10 +72,12 @@ export default class OsmosisSwap extends DexProtocol<Pool> {
             internalPool: op,
           }));
           this.pools = latestOsmoPools;
-          return observer.next({
-            pools: latestOsmoPools,
-            height: blockHeight,
-          });
+          setImmediate(() => {
+            observer.next({
+              pools: latestOsmoPools,
+              height: blockHeight,
+            });
+          })
         }).catch(observer.error.bind(observer)), observer.error.bind(observer));
     });
   }

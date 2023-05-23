@@ -6,7 +6,13 @@ export interface TokenPriceInfo {
   value: string;
 }
 
-export interface Contract {
+
+export interface RawShadeContract {
+  'contract_address': SecretContractAddress;
+  'code_hash': string;
+}
+
+export interface ShadeContract {
   'address': SecretContractAddress;
   'code_hash': string;
 }
@@ -16,7 +22,7 @@ export interface SnipPoolToken extends Snip20Token {
   price?: number;
 }
 
-export interface Snip20Token extends Contract {
+export interface Snip20Token extends ShadeContract {
   'name': string,
   'symbol': string,
   'decimals': number,
@@ -28,11 +34,11 @@ export type SecretContractAddress = Brand<string, "ContractAddress">;
 export type AmountString = Brand<string, "Amount">;
 export type Timestamp = Brand<number, "Timestamp">;
 
-export interface StakingContract extends Contract {
-  'lp_token': Contract,
+export interface StakingContract extends ShadeContract {
+  'lp_token': ShadeContract,
   'amm_pair': SecretContractAddress,
-  'admin_auth': Contract,
-  'query_auth': Contract,
+  'admin_auth': ShadeContract,
+  'query_auth': ShadeContract,
   'total_amount_staked': AmountString,
   'reward_tokens': {
     'token': Snip20Token,

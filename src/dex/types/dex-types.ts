@@ -25,6 +25,7 @@ export enum SwapToken {
   CMST = 'CMST',
   SILK = 'SILK',
   stkdSCRT = 'stkdSCRT',
+  stkATOM = 'stkATOM',
   SCRT = 'SCRT',
   stATOM = 'stATOM',
   IST = 'IST',
@@ -69,6 +70,7 @@ export const SwapTokenMap: Record<SwapToken, Token> = {
   stINJ: SwapToken.stINJ as Token,
   LUNA: SwapToken.LUNA as Token,
   stLUNA: SwapToken.stLUNA as Token,
+  stkATOM: SwapToken.stkATOM as Token,
 };
 
 export interface IPool<T> {
@@ -78,7 +80,6 @@ export interface IPool<T> {
   token0Id: PoolToken;
   token1Id: PoolToken;
   dex: DexProtocolName;
-
   internalPool: T;
 }
 
