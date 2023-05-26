@@ -114,11 +114,11 @@ export default class ArbMonitorUploader {
     }
   }
   `, {
-      objects: arbs,
+      objects: _.uniqBy(arbs, a => a.id),
     });
 
     if (result.errors) {
-      throw new Error(JSON.stringify(_.pick(result.errors[0].extensions, ['code', 'internal.error.hint','path'])));
+      throw new Error(JSON.stringify({ arbs: _.map(arbs, arb => [arb.id, arb.reverse_id]), error: _.pick(result.errors[0].extensions, ['code', 'internal.error.hint','path'])}))
     }
     return {
       rows: result.data.insert_arb_v1,
