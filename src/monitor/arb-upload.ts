@@ -8,79 +8,13 @@ import * as http from 'http';
 import config from '../config';
 import _ from 'lodash';
 import {fetchTimeout} from '../utils';
-import {ArbPathJSON, RouteSegmentInfo} from '../arbitrage/types';
+import {ArbPathParsed} from '../arbitrage/types';
+import {ArbV1, ArbV1Raw, parseRawArbV1Number, toRawArbV1} from './types';
 
-interface ArbV1Raw {
-  amount_bridge: number,
-  amount_in: number,
-  amount_out: number
-  bridge: any,
-  dex_0: string,
-  dex_1: string,
-  id: string
-  last_ts: Date,
-  route_0: RouteSegmentInfo[],
-  route_1: RouteSegmentInfo[],
-  token_0: string,
-  token_1: string
-  ts: Date
-}
-
-interface ArbV1 {
-  amountBridge: number,
-  amountIn: number,
-  amountOut: number
-  bridge: any,
-  dex0: string,
-  dex1: string,
-  id: string
-  route0: RouteSegmentInfo[],
-  route1: RouteSegmentInfo[],
-  token0: string,
-  token1: string
-  lastTs: Date,
-  ts: Date
-}
-
-function toRawArbV1(json: ArbV1): ArbV1Raw {
-  return {
-    amount_bridge: json.amountBridge,
-    amount_in: json.amountIn,
-    amount_out: json.amountOut,
-    bridge: json.bridge || '',
-    dex_0: json.dex0,
-    dex_1: json.dex1,
-    id: json.id,
-    last_ts: json.lastTs,
-    route_0: json.route0,
-    route_1: json.route1,
-    token_0: json.token0,
-    token_1: json.token1,
-    ts: json.ts,
-  };
-}
-
-function parseRawArbV1(arb: ArbV1Raw): ArbV1 {
-  return {
-    amountBridge: arb.amount_bridge,
-    amountIn: arb.amount_in,
-    amountOut: arb.amount_out,
-    bridge: arb.bridge,
-    dex0: arb.dex_0,
-    dex1: arb.dex_1,
-    id: arb.id,
-    lastTs: new Date(arb.last_ts),
-    route0: arb.route_0,
-    route1: arb.route_1,
-    token0: arb.token_0,
-    token1: arb.token_1,
-    ts: new Date(arb.ts),
-  };
-}
 
 export default class ArbMonitorUploader {
-  private readonly persistedArbPaths: Record<string, ArbV1> = {};
-  private readonly latestArbPaths: Record<string, ArbPathJSON> = {};
+  private readonly persistedArbPaths: Record<string, ArbV1<number>> = {};
+  private readonly latestArbPaths: Record<string, ArbPathParsed> = {};
   ts: Date;
 
   constructor(private readonly arbMonitor: ArbitrageMonitor) {
@@ -99,6 +33,7 @@ export default class ArbMonitorUploader {
         token_0
         token_1
         ts
+        reverse_id
       }
     }
   `).then(all => {
@@ -155,12 +90,12 @@ export default class ArbMonitorUploader {
         },
       });
       all.data.arb_v1.forEach(rawArb => {
-        this.persistedArbPaths[rawArb.id] = parseRawArbV1(rawArb);
+        this.persistedArbPaths[rawArb.id] = parseRawArbV1Number(rawArb);
       });
     });
   }
 
-  async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1 }[] }> {
+  async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1<number> }[] }> {
     const result = await execute(`
   mutation upsertManyArbs ($objects: [arb_v1_insert_input!]!) {
     insert_arb_v1(objects: $objects,
@@ -171,7 +106,7 @@ export default class ArbMonitorUploader {
           dex_0, dex_1,
           token_0, token_1,
           route_0, route_1,
-          ts, last_ts
+          ts, last_ts, reverse_id
         ]
     })
     {
@@ -183,18 +118,21 @@ export default class ArbMonitorUploader {
     });
 
     if (result.errors) {
-      throw new Error(JSON.stringify(result.errors));
+      throw new Error(JSON.stringify(_.pick(result.errors[0].extensions, ['code', 'internal.error.hint','path'])));
     }
     return {
       rows: result.data.insert_arb_v1,
       updateManyArbs: arbs.map(arb => ({
-        arb: parseRawArbV1(arb),
+        arb: parseRawArbV1Number(arb),
         id: arb.id,
       })),
     };
   }
 
-  async uploadArbPath(arb: ArbV1): Promise<{ updateArb: { id: string, ts: string } }> {
+  // noinspection JSUnusedGlobalSymbols -- NOT TESTED
+  async uploadArbPath(arb: ArbV1<number>): Promise<{ updateArb: { id: string, ts: string } }> {
+    throw new Error('Not tested');
+    // noinspection UnreachableCodeJS
     const result = await execute(`
 mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp! = "", $amount_bridge: float8 = "$amount_bridge", $amount_in: float8 = "", $amount_out: float8 = "", $dex_0: String = "", $bridge: jsonb = "", $dex_1: String = "", $route_1: jsonb = "", $route_0: jsonb = "", $token_0: String = "", $token_1: String = "") {
   insert_arb_v1_one(
@@ -212,6 +150,7 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
       route_1: $route_1,
       token_1: $token_1,
       ts: $ts
+       reverse_id: $reverse_id
     },
     on_conflict: {
       constraint: arb_v1_pkey,
@@ -228,7 +167,8 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
         token_0,
         route_1,
         token_1,
-        ts
+        ts,
+        reverse_id
       ]
     }) {
       ts
@@ -248,7 +188,8 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
       route_0: any
       token_0: any
       route_1: any
-      token_1: any
+      token_1: any,
+      reverse_id: any
     });
     if (result.errors) {
       throw new Error(JSON.stringify(result.errors));
@@ -275,9 +216,11 @@ mutation updateManyArbTs($arbIds: [String!]! = "", $ts: timestamp! = "") {
 
   }
 
-  arbPathToV1(ap: ArbPath<DexProtocolName, DexProtocolName, any>) {
+  arbPathToV1(ap: ArbPath<DexProtocolName, DexProtocolName, any>): ArbV1<number> {
     return {
       ...ap.toJSON(),
+      route0: ap.route0,
+      route1: ap.route1,
       token0: ap.pair[0],
       token1: ap.pair[1],
       ts: this.ts,

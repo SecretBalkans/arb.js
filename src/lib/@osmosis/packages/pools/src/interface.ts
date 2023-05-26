@@ -1,7 +1,11 @@
 import { Dec, Int } from "@keplr-wallet/unit";
+import {WeightedPoolRaw} from "./weighted";
+import {StablePoolRaw} from "./stable";
 
 /** Interface for pool data and basic operations on that data. */
 export interface Pool {
+  get raw(): WeightedPoolRaw | StablePoolRaw;
+
   get type(): "weighted" | "stable";
 
   get id(): string;

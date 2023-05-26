@@ -4,13 +4,13 @@ import {
   DexProtocol,
   DexProtocolName,
   IPool,
-  IRoute,
+  Route,
   PoolId,
   SwapToken,
   SwapTokenMap,
   Token,
 } from '../types/dex-types';
-import {getShadeTokenById, getShadeTokenBySymbol, toTokenId} from './tokens';
+import {extractShadeTokenSymbol, getShadeTokenById, getShadeTokenBySymbol, toTokenId} from './tokens';
 import {
   findShadePaths,
   ShadeSwapRoute,
@@ -34,7 +34,7 @@ export default class ShadeSwap extends DexProtocol<'shade'> {
     super();
   }
 
-  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: IRoute<'shade'>): { route: IRoute<'shade'>; amountOut: Amount } | null {
+  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Route<'shade'>): { route: Route<'shade'>; amountOut: Amount } | null {
     const startingToken = getShadeTokenBySymbol(tokenInId);
     const endingToken = getShadeTokenBySymbol(tokenOutId);
     const pools = _.map(poolsHint, p => p.raw.id);
@@ -51,11 +51,21 @@ export default class ShadeSwap extends DexProtocol<'shade'> {
       shadePairs: pools?.length ? _.pick(this.shadePairsMap, pools) : this.shadePairsMap,
     });
     return route ? {
-      route: route.route.map(r => ({
-        raw: r,
-        t0: _.pick(getShadeTokenById(r.token0Id), ['id', 'contract_address', 'code_hash', 'logo_path', 'symbol', 'decimals']),
-        t1: _.pick(getShadeTokenById(r.token1Id), ['id', 'contract_address', 'code_hash', 'logo_path', 'symbol', 'decimals']),
-      })),
+      route: route.route.map(r => {
+        let token0 = getShadeTokenById(r.token0Id);
+        let token1 = getShadeTokenById(r.token1Id);
+        return ({
+          raw: r,
+          t0: {
+            symbol: extractShadeTokenSymbol(token0),
+            ..._.pick(token0, ['id', 'contract_address', 'code_hash', 'logo_path', 'decimals'])
+          },
+          t1: {
+            symbol: extractShadeTokenSymbol(token1),
+            ..._.pick(token1, ['id', 'contract_address', 'code_hash', 'logo_path', 'decimals'])
+          },
+        });
+      }),
       amountOut: convertCoinFromUDenomV2(route.quoteOutputAmount, endingToken.decimals),
     } : null;
   }
@@ -135,7 +145,7 @@ export default class ShadeSwap extends DexProtocol<'shade'> {
 
   private isFetchingShadePairs = false;
 
-  public override subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<ShadePair>[]; height: number }> {
+  public override subscribeToPoolsUpdate(retryTime = 1000): Observable<{ pools: IPool<ShadePair>[]; height: number }> {
     return new Observable<{ pools: IPool<ShadePair>[], height: number }>(observer => {
       createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => {
         if (!this.isFetchingShadePairs) {

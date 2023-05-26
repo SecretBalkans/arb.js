@@ -1,4 +1,4 @@
-import { OptimizedRoutes } from "../../lib/@osmosis/packages/pools/src";
+import {OptimizedRoutes, StablePoolRaw, WeightedPoolRaw} from "../../lib/@osmosis/packages/pools/src";
 import { Pool } from "../../lib/@osmosis/packages/pools/src";
 import incentivizedPoolIds from "./incentivizedPoolIds";
 import bigInteger from "big-integer";
@@ -47,4 +47,8 @@ export default class OsmosisCalc {
       out: router.calculateTokenOutByTokenIn(routes).amount,
     }));
   }
+}
+
+export function isStablePool(poolRaw: WeightedPoolRaw | StablePoolRaw): poolRaw is StablePoolRaw {
+  return poolRaw['@type'] === '/osmosis.gamm.poolmodels.stableswap.v1beta1.Pool';
 }

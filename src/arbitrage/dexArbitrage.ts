@@ -5,7 +5,7 @@ import {
   DexProtocol,
   DexProtocolName,
   IPool,
-  IRoute,
+  Route,
   PoolId, PoolInfo,
   reversePair,
   SwapToken,
@@ -18,7 +18,8 @@ import {combineLatest, Observable, ObservedValueOf} from 'rxjs';
 import {filter, map} from 'rxjs/operators';
 import {Logger} from '../utils';
 import BigNumber from 'bignumber.js';
-import {ArbPathJSON} from "./types";
+import {ArbPathParsed} from "./types";
+import {serializeRoute} from '../monitor/types';
 
 const logger = new Logger('ArbitrageInternal');
 
@@ -26,8 +27,8 @@ export class ArbPath<T extends DexProtocolName, K extends DexProtocolName, B> {
   pair: ArbPair;
   dex0: DexProtocol<T>;
   dex1: DexProtocol<K>;
-  route0?: IRoute<T>;
-  route1?: IRoute<K>;
+  route0?: Route<T>;
+  route1?: Route<K>;
   bridge?: B[];
   amountIn?: Amount;
   amountBridge?: Amount;
@@ -51,8 +52,8 @@ export class ArbPath<T extends DexProtocolName, K extends DexProtocolName, B> {
                 pair: ArbPair,
                 dex0: DexProtocol<T>,
                 dex1: DexProtocol<K>,
-                route0?: IRoute<T>,
-                route1?: IRoute<K>,
+                route0?: Route<T>,
+                route1?: Route<K>,
                 bridge?: B[],
                 amountIn?: Amount,
                 amountBridge?: Amount,
@@ -88,14 +89,15 @@ export class ArbPath<T extends DexProtocolName, K extends DexProtocolName, B> {
     return this.amountIn ? `(${this.winPercentage?.multipliedBy(100)?.toFixed(2)}%) ${this.dex0.name}-${this.dex1.name} [${this.pair[0]}-${this.pair[1]}] ${this.amountIn?.toString()}->${this.amountBridge?.toString()} ${this.pair[1]}->${this.amountOut?.toString()}` : `(N/A) ${this.dex0.name}-${this.dex1.name} [${this.pair[0]}-${this.pair[1]}]`;
   }
 
-  toJSON(): ArbPathJSON {
+  toJSON(): ArbPathParsed {
     return {
-      id: `${[this.dex0.name, this.dex1.name].sort().join('-')}_${this.pair.slice().sort().join('-')}`,
+      id: this.id,
+      reverseId: this.reverseId,
       pair: this.pair,
       dex0: this.dex0.name,
       dex1: this.dex1.name,
-      route0: this.route0,
-      route1: this.route1,
+      route0: serializeRoute(this.route0),
+      route1: serializeRoute(this.route1),
       bridge: this.bridge,
       amountIn: this.amountIn?.toNumber(),
       amountBridge: this.amountBridge?.toNumber(),
@@ -103,6 +105,22 @@ export class ArbPath<T extends DexProtocolName, K extends DexProtocolName, B> {
       error0: this.error0?.message,
       error1: this.error1?.message,
     };
+  }
+
+  get id() {
+    return ArbPath.getId({dex0: this.dex0.name, dex1: this.dex1.name, pair: this.pair});
+  }
+
+  get reverseId() {
+    return ArbPath.getId({
+      dex0: this.dex1.name,
+      dex1: this.dex0.name,
+      pair: [this.pair[1], this.pair[0]]
+    });
+  }
+
+  static getId({pair, dex0, dex1}: { pair: ArbPair, dex0: DexProtocolName, dex1: DexProtocolName }) {
+    return `${[dex0, dex1].join('-')}_${pair.slice().join('-')}`
   }
 }
 
@@ -223,7 +241,7 @@ export class ArbitrageMonitor {
             || _.find(dexProtocols[1].pools, pool =>
               d1poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0);
         });
-        const result = _.map(changedPairs, changedPair => {
+        const result = _.flatMap(changedPairs, changedPair => {
           console.time(changedPair.join('-'));
           const baseAmount = this.getCurrentCapacity({pair: changedPair, dex0, dex1});
           const pathResults = [
@@ -232,9 +250,8 @@ export class ArbitrageMonitor {
             this.calcDexArbOut(baseAmount, reversePair(changedPair), dex0, dex1),
             this.calcDexArbOut(baseAmount, reversePair(changedPair), dex1, dex0),
           ];
-          const arbPath = _.maxBy(pathResults, d => d.amountOut?.minus(d.amountIn).dividedBy(d.amountIn).toNumber() || 0);
           console.timeEnd(changedPair.join('-'));
-          return arbPath;
+          return pathResults;
         }).map((arbPath: ArbPath<DexProtocolName, DexProtocolName, any>) => {
           if (arbPath.amountOut?.isGreaterThan(arbPath.amountIn)) {
             console.time('Capacity/' + arbPath.pair.join('-'));
@@ -272,7 +289,11 @@ export class ArbitrageMonitor {
                            dex0,
                            dex1,
                          }: { pair: ArbPair, dex0: DexProtocol<DexProtocolName>, dex1: DexProtocol<DexProtocolName> }): string {
-    return `${pair.slice().sort().join('-')}[${[dex0.name, dex1.name].sort().join('-')}]`;
+    return ArbPath.getId({
+      dex0: dex0.name,
+      dex1: dex1.name,
+      pair
+    });
   }
 
   private setCurrentCapacity(path: ArbPath<DexProtocolName, DexProtocolName, any>) {

@@ -1,5 +1,5 @@
-import { Brand } from "../../ts";
-import {Amount} from "../types/dex-types";
+import {Amount, Brand} from "../types/dex-types";
+import {TokenPairInfoRaw} from "./shade-api-utils";
 
 export interface TokenPriceInfo {
   id: string;
@@ -8,25 +8,34 @@ export interface TokenPriceInfo {
 }
 
 
-type ShadeTokenEssential = RawShadeContract & { logo_path: string, symbol: string, decimals: number, id: string };
+export type ShadeTokenEssential = RawShadeContract & { logo_path: string, symbol: string, decimals: number, id: string };
 export type ShadeRouteSegmentInfo = {
   t0: ShadeTokenEssential,
   t1: ShadeTokenEssential,
   raw: ShadeRoutePoolEssential,
 };
-
+export type SerializedShadeRouteSegmentInfo = {
+  t0: ShadeTokenEssential,
+  t1: ShadeTokenEssential,
+  raw: TokenPairInfoRaw,
+};
 export interface ShadeContractJson {
   'address': SecretContractAddress;
   'codeHash': string;
 }
 
 export interface RawShadeContract {
-  'contract_address': SecretContractAddress;
+  'contract_address': string;
   'code_hash': string;
 }
 
 export interface ShadeContract {
   'address': SecretContractAddress;
+  'code_hash': string;
+}
+
+export interface SerializedShadeContract {
+  'address': string;
   'code_hash': string;
 }
 
@@ -66,7 +75,6 @@ export interface StakingContract extends ShadeContract {
 
 export interface ShadeRoutePoolParsed extends ShadeRoutePoolEssential {
   stakingContract: any;
-  flags: any;
   metrics: { volume: any; liquidity: Amount; currency: any; apy: any };
   rewardTokens: any;
 }
@@ -80,5 +88,6 @@ export interface ShadeRoutePoolEssential {
   token0Amount: Amount;
   stableParams: any;
   id: any;
+  flags: string[];
   token1Amount: Amount;
 }

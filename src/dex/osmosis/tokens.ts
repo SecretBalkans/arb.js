@@ -47,7 +47,7 @@ ChainInfos.forEach(chInfo => {
         chainId: chInfo.chainId,
         decimals: curr.coinDecimals,
         channelId: ibcInfo.sourceChannelId,
-        denom: ibcMinimalDenom as Denom
+        denom: ibcMinimalDenom as string as Denom
       }
       return denomsToCoinInfo[ibcMinimalDenom] = {
         chainId: chInfo.chainId,
@@ -65,7 +65,7 @@ ChainInfos.forEach(chInfo => {
         decimals: curr.coinDecimals,
         chainId: chInfo.chainId,
         channelId: ibcInfo.sourceChannelId,
-        denom: ibcMinimalDenom as Denom
+        denom: ibcMinimalDenom as string as Denom
       }
       return denomsToCoinInfo[ibcMinimalDenom] = {
         chainId: chInfo.chainId,

@@ -1,6 +1,13 @@
 import { fetchTimeout } from '../../utils';
 import https from 'https';
-import { OptimizedRoutes, Pool, StablePool, WeightedPool } from '../../lib/@osmosis/packages/pools/src';
+import {
+  OptimizedRoutes,
+  Pool,
+  StablePool,
+  StablePoolRaw,
+  WeightedPool,
+  WeightedPoolRaw
+} from '../../lib/@osmosis/packages/pools/src';
 import _ from 'lodash';
 import { PoolId } from '../types/dex-types';
 import incentivizedPoolIds from './incentivizedPoolIds';

@@ -1,4 +1,4 @@
-import { Pool } from "../../lib/@osmosis/packages/pools/src";
+import {StablePoolRaw, WeightedPoolRaw} from "../../lib/@osmosis/packages/pools/src";
 
 export type DenomInfo = {
   decimals: number,
@@ -6,8 +6,11 @@ export type DenomInfo = {
   symbol: string
 }
 
-export type OsmosisRouteSegmentInfo = {
+export type OsmosisRoute = {
   t0: DenomInfo,
   t1: DenomInfo,
-  raw: Pool,
+  raws: OsmosisPoolRaw[]
 };
+
+export type OsmosisPoolRaw = WeightedPoolRaw | StablePoolRaw
+

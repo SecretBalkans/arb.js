@@ -1,12 +1,17 @@
 import { Observable } from 'rxjs';
-import { Brand } from '../../ts';
 import { Pool } from '../../lib/@osmosis/packages/pools/src';
 import { ShadePair } from '../shade/shade-api-utils';
 import BigNumber from 'bignumber.js';
-import {RouteSegment} from "../../arbitrage/types";
+import {OsmosisRoute} from '../osmosis/types';
+import {SerializedShadeRouteSegmentInfo, ShadeRouteSegmentInfo} from "../shade/types";
 
 export type Amount = BigNumber;
 export type CoinAmount = BigNumber;
+declare const brand: unique symbol;
+
+export type Brand<T, TBrand extends string> = T & {
+  [brand]: TBrand;
+}
 
 export type Token = Brand<string, 'Token'>;
 export type Denom = Brand<string, 'Denom'>;
@@ -35,19 +40,15 @@ export enum SwapToken {
   stOSMO = 'stOSMO',
   stINJ = 'stINJ',
   INJ = 'INJ',
-  stLUNA = 'stLUNA',
-  LUNA = 'LUNA',
   OSMO = 'OSMO',
   JUNO = 'JUNO',
   stJUNO = 'stJUNO',
-  JKL = 'JKL',
-  BLD = 'BLD',
-  SIENNA = 'SIENNA',
+  BLD = 'BLD'
 }
 
 // noinspection JSUnusedLocalSymbols
-function isArbedToken(token: Token | NonArbedToken): token is Token {
-  return !!SwapTokenMap[token as Token];
+export function isSwapToken(token: string | PoolToken): token is SwapToken {
+  return !!SwapTokenMap[token as SwapToken];
 }
 
 export const SwapTokenMap: Record<SwapToken, Token> = {
@@ -66,13 +67,9 @@ export const SwapTokenMap: Record<SwapToken, Token> = {
   OSMO: SwapToken.OSMO as Token,
   JUNO: SwapToken.JUNO as Token,
   stJUNO: SwapToken.stJUNO as Token,
-  SIENNA: SwapToken.SIENNA as Token,
-  JKL: SwapToken.JKL as Token,
   BLD: SwapToken.BLD as Token,
   INJ: SwapToken.INJ as Token,
   stINJ: SwapToken.stINJ as Token,
-  LUNA: SwapToken.LUNA as Token,
-  stLUNA: SwapToken.stLUNA as Token,
   stkATOM: SwapToken.stkATOM as Token,
 };
 
@@ -86,9 +83,15 @@ export interface IPool<T extends DexPool> {
   internalPool: T;
 }
 
-export type DexProtocolName = 'osmosis' | 'shade';
+export type DexProtocolName = 'shade' | 'osmosis';
 
-export type IRoute<T extends DexProtocolName> = RouteSegment<T>[];
+export function isDexProtocolName(dexName: string): dexName is DexProtocolName {
+  return ['osmosis', 'shade'].includes(dexName);
+}
+
+export type Route<T extends DexProtocolName> = T extends 'osmosis' ? OsmosisRoute : (ShadeRouteSegmentInfo[])
+
+export type SerializedRoute<T extends DexProtocolName> = T extends 'osmosis' ? OsmosisRoute : (SerializedShadeRouteSegmentInfo[])
 
 export type DexPool = Pool | ShadePair;
 export type PoolInfo<T extends DexProtocolName> = T extends 'osmosis' ? Pool : ShadePair;
@@ -97,9 +100,9 @@ export abstract class DexProtocol<T extends DexProtocolName> implements ICanSwap
   name: DexProtocolName;
   pools: IPool<PoolInfo<T>>[];
 
-  abstract calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: IRoute<T>): { route: IRoute<T>; amountOut: Amount } | null;
+  abstract calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Route<T>): { route: Route<T>; amountOut: Amount } | null;
 
-  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools): { route?: IRoute<T>; amountOut?: Amount, internalSwapError: Error | null } {
+  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools): { route?: Route<T>; amountOut?: Amount, internalSwapError: Error | null } {
     try {
       const result = this.calcSwapWithPools(amountIn, tokenInId, tokenOutId, pools);
       if (!result) {
@@ -123,7 +126,7 @@ export abstract class DexProtocol<T extends DexProtocolName> implements ICanSwap
 }
 
 export interface ICanSwap<T extends DexProtocolName> {
-  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: IRoute<T>): { route: IRoute<T>, amountOut: Amount };
+  calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: Route<T>): { route: Route<T>, amountOut: Amount };
 
   getPoolsMap(pairs: [SwapToken, SwapToken][]): PoolId[];
 }

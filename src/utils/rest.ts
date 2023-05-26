@@ -18,6 +18,6 @@ export async function fetchTimeout(url, options = {}, timeout = 25000) {
     text = await (response as any).text();
     return JSON.parse(text);
   } catch (err) {
-    throw text ? new Error(text) : err;
+    throw text ? new Error(`${text} / ${url}`) : err;
   }
 }

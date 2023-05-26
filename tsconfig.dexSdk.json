@@ -1,10 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "include": [
-    "src/dex/dexSdk/index.ts",
+    "src/dexSdk/index.ts"
   ],
   "compilerOptions": {
     "esModuleInterop": true,
+    "declaration": true,
     "outDir": "build-dex"
   },
   "exclude": [

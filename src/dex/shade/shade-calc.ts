@@ -78,7 +78,7 @@ export default class ShadeCalc {
             priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
           }
             , startingInputTokenAmount = getTradeInputOfSimulateReverseToken0WithToken1Trade(Z);
-          otherTokenAmount = BigNumber(convertCoinToUDenomV2(startingInputTokenAmount, te).toString());
+          otherTokenAmount = convertCoinToUDenomV2(startingInputTokenAmount, te);
           const b = {
             inputToken0Amount: startingInputTokenAmount,
             poolToken0Amount: poolPairInfo.token0Amount,
@@ -110,7 +110,7 @@ export default class ShadeCalc {
             priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
           }
             , V = getTradeInputOfSimulateReverseToken1WithToken0Trade(Z);
-          otherTokenAmount = BigNumber(convertCoinToUDenomV2(V, te).toString());
+          otherTokenAmount = convertCoinToUDenomV2(V, te).toString();
           const b = {
             inputToken1Amount: V,
             poolToken0Amount: poolPairInfo.token0Amount,
@@ -235,7 +235,7 @@ export default class ShadeCalc {
               priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
             }
               , otherTokenAmount = stableSwapToken0ToToken1InPool(stablePoolParams);
-            otherTokenDenomAmount = BigNumber(convertCoinToUDenomV2(otherTokenAmount, otherTokenDecimals).toString()),
+            otherTokenDenomAmount = convertCoinToUDenomV2(otherTokenAmount, otherTokenDecimals),
               priceImpact = calculateStableSwapPriceImpactInputToken0(stablePoolParams);
           } else if (outputTokenId === poolPairInfo.token1Id && poolPairInfo.stableParams !== null) {
             const Z = {
@@ -253,7 +253,7 @@ export default class ShadeCalc {
               priceImpactLimit: poolPairInfo.stableParams.maxPriceImpactAllowed,
             }
               , V = stableSwapToken1ToToken0InPool(Z);
-            otherTokenDenomAmount = BigNumber(convertCoinToUDenomV2(V, otherTokenDecimals).toString()),
+            otherTokenDenomAmount = convertCoinToUDenomV2(V, otherTokenDecimals),
               priceImpact = calculateStableSwapPriceImpactInputToken1(Z);
           } else {
             throw Error('stableswap parameter error');

@@ -4,11 +4,10 @@ import OsmosisSwap from './dex/osmosis/osmosisSwap';
 import ShadeSwap from './dex/shade/shadeSwap';
 import { Logger } from './utils';
 import ArbMonitorUploader from './monitor/arb-upload';
-const logger = new Logger('ArbM');
 (async () => {
   const dexStore = new DexStore([
     new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
-    new ShadeSwap('https://secretnetwork-rpc.lavenderfive.com:443', false)
+    new ShadeSwap('https://rpc.secret.express', true)
     ]
   );
   /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
@@ -26,7 +25,8 @@ const logger = new Logger('ArbM');
     [SwapToken.SCRT, SwapToken.BLD],
     [SwapToken.SCRT, SwapToken.IST],
     [SwapToken.SCRT, SwapToken.CMST],
-    [SwapToken.SCRT, SwapToken.stkATOM],
+    [SwapToken.SCRT, SwapToken.CMST],
+    [SwapToken.SCRT, SwapToken.stOSMO],
     [SwapToken.SCRT, SwapToken.qATOM],
     [SwapToken.SCRT, SwapToken.INJ],
     [SwapToken.CMST, SwapToken.IST],

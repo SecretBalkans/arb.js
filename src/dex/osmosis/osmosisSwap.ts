@@ -4,7 +4,7 @@ import {
   DexProtocol,
   DexProtocolName,
   IPool,
-  IRoute,
+  Route,
   PoolId,
   SwapToken,
   SwapTokenMap,
@@ -16,12 +16,19 @@ import {getOsmoPools} from './osmosis-rest';
 import {convertCoinFromUDenomV2, Logger} from '../../utils';
 import {Observable} from 'rxjs';
 import createCosmosObserver from '../utils/cosmosObserver';
-import {OptimizedRoutes, Pool} from '../../lib/@osmosis/packages/pools/src';
+import {
+  OptimizedRoutes,
+  Pool,
+  StablePool,
+  StablePoolRaw,
+  WeightedPool,
+  WeightedPoolRaw
+} from '../../lib/@osmosis/packages/pools/src';
 import bigInteger from 'big-integer';
 import _ from 'lodash';
 import BigNumber from 'bignumber.js';
 import incentivizedPoolIds from "./incentivizedPoolIds";
-import OsmosisCalc from "./osmosis-calc";
+import OsmosisCalc, {isStablePool} from "./osmosis-calc";
 
 const pairPools: Record<string, PoolId[]> = {};
 
@@ -37,14 +44,20 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
     super();
   }
 
-  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: IRoute<'osmosis'>): { route: IRoute<'osmosis'>; amountOut: Amount } | null {
+  public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Route<'osmosis'>): { route: Route<'osmosis'>; amountOut: Amount } | null {
     const {denom: tokenInDenomOsmo, decimals: tokenInOsmoDecimals} = getTokenDenom(tokenInId);
     const {denom: tokenOutDenomOsmo, decimals: tokenOutOsmoDecimals} = getTokenDenom(tokenOutId);
 
     const tokenInAmount = bigInteger(amountIn.multipliedBy(10 ** tokenInOsmoDecimals).toFixed(0));
     let poolsToCalc: Pool[];
-    if (poolsHint?.length) {
-      poolsToCalc = poolsHint.map(hint => hint.raw);
+    if (poolsHint?.raws.length) {
+      poolsToCalc = poolsHint.raws.map((poolRaw: WeightedPoolRaw | StablePoolRaw) => {
+        if (isStablePool(poolRaw)) {
+          return new StablePool(poolRaw);
+        } else {
+          return new WeightedPool(poolRaw);
+        }
+      });
     } else {
       const osmoPairPools = this.getOsmoPairPools(tokenInDenomOsmo, tokenOutDenomOsmo);
       poolsToCalc = this.rawPools.filter(p => osmoPairPools.includes(p.id as PoolId))
@@ -59,8 +72,7 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
     const amountOut = convertCoinFromUDenomV2(osmo?.out?.toString(), tokenOutOsmoDecimals);
     return {
       amountOut,
-      route: osmo?.pools?.map(pool => ({
-        raw: pool,
+      route: {
         t0: {
           decimals: tokenInOsmoDecimals,
           denom: tokenInDenomOsmo,
@@ -70,12 +82,13 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
           decimals: tokenOutOsmoDecimals,
           denom: tokenOutDenomOsmo,
           symbol: tokenOutId
-        }
-      }))
-    };
+        },
+        raws: osmo?.pools?.map(pool => pool.raw)
+      }
+    }
   }
 
-  public override subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<Pool>[], height: number }> {
+  public override subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<Pool> [], height: number }> {
     return new Observable<{ pools: IPool<Pool>[], height: number }>(observer => {
       createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => getOsmoPools()
         .then(osmoPools => {

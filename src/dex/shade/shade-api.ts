@@ -3,21 +3,23 @@ import {fetchTimeout, Logger} from '../../utils';
 import _ from 'lodash';
 import Aigle from 'aigle';
 import {ArbWallet} from '../../wallet/ArbWallet';
-import {convertCoinFromUDenomV2} from '../../utils';
 import config from '../../config';
-import https from 'https';
 import {
-  ShadeContract,
-  SnipPoolToken,
   SecretContractAddress,
   Snip20Token,
-  StakingContract,
-  TokenPriceInfo, ShadeRoutePoolParsed,
+  TokenPriceInfo,
 } from './types';
-import BigNumber from 'bignumber.js';
 import {safeJsonStringify} from '../../utils/safe-json-stringify';
 import {ShadeRoutePoolEssentialsIdMap} from "./shade-calc";
-import {getPairsRaw, getTokenPrices, ShadePair, TokenPairInfoRaw, tokens, useTokens} from './shade-api-utils';
+import {
+  getPairsRaw,
+  getTokenPrices,
+  parseRawPool,
+  ShadePair,
+  TokenPairInfoRaw,
+  tokens,
+  useTokens
+} from './shade-api-utils';
 
 const arb = new ArbWallet({
   // secretLcdUrl: 'https://lcd.secret.express',
@@ -101,7 +103,7 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
   const price0 = +_.find(prices, {id: token0.price_id})?.value;
   const price1 = +_.find(prices, {id: token1.price_id})?.value;
 
-  if(cached) {
+  if (cached) {
     // Use shade api
     pairInfo.amount_0 = rawInfo.token_0_amount;
     pairInfo.amount_1 = rawInfo.token_1_amount;
@@ -128,115 +130,17 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
   });
 }
 
-export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[]): ShadeRoutePoolEssentialsIdMap {
-  return rawPairsInfo.reduce((t, n) => {
+export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[], t0decimals?: number, t1decimals?: number): ShadeRoutePoolEssentialsIdMap {
+  const t = useTokens()
+    , {getTokenDecimals: getTokenDecimals} = t
+  return rawPairsInfo.reduce((agg, n) => {
     try {
-      const o = n.volume ? {
-        volume: n.volume.volume,
-        volume24HourChange: n.volume.volume_24h_change,
-        volume24HourChangePercent: n.volume.volume_24h_change_perc,
-      } : {
-        volume: 0,
-        volume24HourChange: 0,
-        volume24HourChangePercent: 0,
-      };
-      let d;
-      n.stable_params !== null ? d = {
-        priceRatio: BigNumber(n.stable_params.price_ratio),
-        a: BigNumber(n.stable_params.a),
-        gamma1: BigNumber(n.stable_params.gamma1),
-        gamma2: BigNumber(n.stable_params.gamma2),
-        minTradeSizeToken0For1: BigNumber(n.stable_params.min_trade_size_0_to_1),
-        minTradeSizeToken1For0: BigNumber(n.stable_params.min_trade_size_1_to_0),
-        maxPriceImpactAllowed: BigNumber(n.stable_params.max_price_impact_allowed),
-      } : d = null;
-      const u = n.apy.reward_tokens.map(C => ({
-        tokenId: C.token_id,
-        apy: C.apy,
-      }));
       return {
-        ...t,
-        [n.id]: parseRawPool({
-          id: n.id,
-          contract: {
-            address: n.contract.address,
-            codeHash: n.contract.code_hash,
-          },
-          token0Id: n.token_0,
-          token0AmountRaw: n.token_0_amount,
-          token1Id: n.token_1,
-          token1AmountRaw: n.token_1_amount,
-          lpTokenId: n.lp_token,
-          stableParams: d,
-          fees: {
-            dao: BigNumber(n.fees.dao),
-            liquidityProvider: BigNumber(n.fees.lp),
-          },
-          stakingContract: {
-            id: n.staking_contract.id,
-            address: n.staking_contract.address,
-            codeHash: n.staking_contract.code_hash,
-          },
-          rewardTokens: u,
-          flags: n.flags,
-          metrics: {
-            liquidityRaw: n.liquidity,
-            volume: {
-              value: Number(o.volume),
-              changeAmount: Number(o.volume24HourChange),
-              changePercent: Number(o.volume24HourChangePercent),
-            },
-            apy: n.apy.total,
-            currency: n.currency,
-          },
-        }),
+        ...agg,
+        [n.id]: parseRawPool(n, t0decimals || getTokenDecimals(n.token_0), t1decimals || getTokenDecimals(n.token_1)),
       };
-    } catch(err) {
+    } catch (err) {
       logger.log(err.message);
     }
   }, {});
-}
-
-function parseRawPool(e): ShadeRoutePoolParsed {
-  const t = useTokens()
-    , {getTokenDecimals: getTokenDecimals} = t
-    , {
-    id: o,
-    contract: u,
-    stakingContract: l,
-    rewardTokens: k,
-    lpTokenId: O,
-    token0Id: v,
-    token0AmountRaw: t0amnt,
-    token1Id: d,
-    token1AmountRaw: g,
-    fees: m,
-    stableParams: y,
-    flags: b,
-    metrics: C,
-  } = e
-    , {liquidityRaw: P, volume: w, apy: E, currency: U} = C
-    , T = getTokenDecimals(v)
-    , te = getTokenDecimals(d)
-    , $ = getTokenDecimals(O);
-  return {
-    id: o,
-    contract: u,
-    token0Id: v,
-    token0Amount: convertCoinFromUDenomV2(t0amnt, T),
-    token1Id: d,
-    token1Amount: convertCoinFromUDenomV2(g, te),
-    lpTokenId: O,
-    stableParams: y,
-    fees: m,
-    stakingContract: l,
-    rewardTokens: k,
-    flags: b,
-    metrics: {
-      liquidity: convertCoinFromUDenomV2(P, $),
-      volume: w,
-      apy: E,
-      currency: U,
-    },
-  };
 }
