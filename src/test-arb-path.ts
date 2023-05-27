@@ -1,13 +1,13 @@
-import { ArbitrageMonitor, DexStore } from './arbitrage/dexArbitrage';
-import { SwapToken } from './dex/types/dex-types';
+import {ArbitrageMonitor, DexStore} from './arbitrage/dexArbitrage';
+import {SwapToken} from './dex/types/dex-types';
 import OsmosisSwap from './dex/osmosis/osmosisSwap';
 import ShadeSwap from './dex/shade/shadeSwap';
-import { Logger } from './utils';
 import ArbMonitorUploader from './monitor/arb-upload';
+
 (async () => {
   const dexStore = new DexStore([
-    new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
-    new ShadeSwap('https://rpc.secret.express', true)
+      new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
+      new ShadeSwap('https://rpc.secret.express', true)
     ]
   );
   /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({

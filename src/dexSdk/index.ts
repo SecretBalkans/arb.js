@@ -68,6 +68,7 @@ export default function calculateTokenSwap<T extends DexProtocolName>(
         if (e.message.includes('parameter error')) {
           throw new Error(`${swapTokenSent}-${swapTokenReceived} doesn't match route.`)
         }
+        throw e;
       }
     default:
       throw new Error(`Unsupported dex: ${dex} to calculate token swap ${amount.toString()} ${swapTokenSent} -> x ${swapTokenReceived}`)

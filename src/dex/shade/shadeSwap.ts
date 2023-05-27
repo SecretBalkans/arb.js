@@ -108,7 +108,7 @@ export default class ShadeSwap extends DexProtocol<'shade'> {
             return agg.push(pathCalculation),
               agg;
           } catch (err) {
-            logger.debugOnce(`Path outcome error (${currentPath})= ${err.message} ${err.stack}`);
+            logger.debugOnce(err.message, `Path outcome error (${currentPath})=${err.stack}`);
             return agg;
           }
         }, [])

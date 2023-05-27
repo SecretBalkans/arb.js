@@ -283,10 +283,11 @@ export default class ShadeCalc {
             });
         else
           throw Error('constant product rule swap parameter error');
+
         try {
           validateTradeSize(otherTokenDenomAmount, BigNumber(0))
         } catch (e) {
-          throw Error(`Invalid trade size ${e.message} at path = ${poolId}`);
+          throw Error(`Invalid trade size ${e.message} at path=${poolId}. tradeSize=${otherTokenDenomAmount.toNumber()} ${!!poolPairInfo.stableParams ? `stable_params.price_ratio=${poolPairInfo.stableParams?.priceRatio}` : '' }`);
         }
         return {
           outputTokenId: otherTokenId,

@@ -552,6 +552,9 @@ export function calculateXYKToken1AmountFromToken0Amount({
 }
 
 export function validateTradeSize(i, e) {
+  if(i.isNaN()) {
+    throw new Error('Trade size NaN');
+  }
   if (i.isLessThanOrEqualTo(0))
     throw Error('Trade size must be positive');
   if (i.isLessThanOrEqualTo(e))
