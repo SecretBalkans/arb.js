@@ -51,7 +51,7 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
     const tokenInAmount = bigInteger(amountIn.multipliedBy(10 ** tokenInOsmoDecimals).toFixed(0));
     let poolsToCalc: Pool[];
     if (poolsHint?.raws.length) {
-      poolsToCalc = poolsHint.raws.map((poolRaw: WeightedPoolRaw | StablePoolRaw) => {
+      poolsToCalc = poolsHint.raws.map(({pool: poolRaw}) => {
         if (isStablePool(poolRaw)) {
           return new StablePool(poolRaw);
         } else {
@@ -66,7 +66,7 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
     const [osmo] = calc.calculateBestOsmosisSwapRoute({
       tokenInAmount,
       tokenOutDenom: tokenOutDenomOsmo,
-      tokenInDenom: tokenInDenomOsmo
+      tokenInDenom: tokenInDenomOsmo,
     });
 
     const amountOut = convertCoinFromUDenomV2(osmo?.out?.toString(), tokenOutOsmoDecimals);
@@ -83,7 +83,13 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
           denom: tokenOutDenomOsmo,
           symbol: tokenOutId
         },
-        raws: osmo?.pools?.map(pool => pool.raw)
+        raws: osmo?.pools?.map((pool, i) => {
+          const tokenOutDenom = osmo.tokenOutDenoms[i];
+          return {
+            pool: pool.raw,
+            tokenOutDenom,
+          };
+        })
       }
     }
   }

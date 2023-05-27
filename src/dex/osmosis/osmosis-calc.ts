@@ -29,7 +29,7 @@ export default class OsmosisCalc {
     tokenInDenom: string,
     tokenInAmount: bigInteger.BigInteger,
     tokenOutDenom: string
-  }) {
+  }): {amount: Int, pools: Pool[], tokenIn: string, tokenOutDenoms: string[], out: Int}[] {
     const int = tokenInAmount.toString();
     const router = this.getPairRouter(tokenInDenom, tokenOutDenom);
     const routes = router.getOptimizedRoutesByTokenIn(
@@ -44,6 +44,8 @@ export default class OsmosisCalc {
     return routes.map(r => ({
       amount: r.amount,
       pools: r.pools,
+      tokenIn: r.tokenInDenom,
+      tokenOutDenoms: r.tokenOutDenoms,
       out: router.calculateTokenOutByTokenIn(routes).amount,
     }));
   }

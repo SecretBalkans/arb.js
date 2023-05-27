@@ -22,7 +22,7 @@ export default function calculateTokenSwap<T extends DexProtocolName>(
   switch (dex) {
     case "osmosis":
       const osmosisRoute = route as Route<'osmosis'>;
-      const calc = new OsmosisCalc(osmosisRoute.raws.map((poolRaw) => {
+      const calc = new OsmosisCalc(osmosisRoute.raws.map(({pool: poolRaw}) => {
         if (isStablePool(poolRaw)) {
           return new StablePool(poolRaw);
         } else {

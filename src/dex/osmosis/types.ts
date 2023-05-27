@@ -9,7 +9,7 @@ export type DenomInfo = {
 export type OsmosisRoute = {
   t0: DenomInfo,
   t1: DenomInfo,
-  raws: OsmosisPoolRaw[]
+  raws: { pool: OsmosisPoolRaw, tokenOutDenom: string}[]
 };
 
 export type OsmosisPoolRaw = WeightedPoolRaw | StablePoolRaw
