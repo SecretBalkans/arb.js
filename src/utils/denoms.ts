@@ -9,10 +9,10 @@ import { Amount, Brand } from '../dex/types/dex-types';
 export type IBCHash = Brand<string, "IBCHash">;
 
 export const convertCoinToUDenomV2 = (input: string | number | bigInteger.BigInteger | BigNumber, decimals: number): Amount => {
-  return typeof input === 'string' || typeof input === 'number' ?
+  return BigNumber(typeof input === 'string' || typeof input === 'number' ?
     BigNumber(input)
       .multipliedBy(BigNumber(10).pow(decimals)) :
-    BigNumber(input.toString()).multipliedBy(BigNumber(10).pow(decimals));
+    BigNumber(input.toString()).multipliedBy(BigNumber(10).pow(decimals)).toFixed(0));
 };
 export const convertCoinFromUDenomV2 = (input: string | bigInteger.BigInteger | BigNumber,decimals:number): Amount =>(BigNumber.config({
   DECIMAL_PLACES: 18

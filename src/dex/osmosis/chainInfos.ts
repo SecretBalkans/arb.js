@@ -177,8 +177,8 @@ const chainInfos = (
       explorerUrlToTx: "https://finder.terra.money/columbus-5/tx/{txHash}",
     },
     {
-      rpc: "https://rpc-secret.keplr.app",
-      rest: "https://lcd-secret.keplr.app",
+      rpc: "https://rpc.secret.express",
+      rest: "https://lcd.secret.express",
       // rest: "https://api.scrt.network/",
       chainId: "secret-4",
       chainName: "Secret Network",
@@ -197,7 +197,7 @@ const chainInfos = (
           isStakeCurrency: true,
           isFeeCurrency: true,
           gasPriceStep: {
-            low: 0.0125,
+            low: 0.025,
             average: 0.1,
             high: 0.25,
           },
