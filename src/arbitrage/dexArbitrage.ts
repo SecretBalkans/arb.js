@@ -126,8 +126,8 @@ export class ArbPath<T extends DexProtocolName, K extends DexProtocolName, B> {
 
 type ArbPair = [SwapToken, SwapToken];
 const OVERRIDES_DEFAULT_BASE_AMOUNTS = {
-  WBTC: 0.001,
-  WETH: 0.01
+  WBTC: BigNumber(0.001),
+  WETH: BigNumber(0.01)
 }
 
 export class ArbitrageMonitor {
@@ -272,7 +272,7 @@ export class ArbitrageMonitor {
             return capacityUntilBalance;
           } else {
             // Reset capacity of arb routes that are not winning anymore
-            const defaultCapacity = this.calcDexArbOut(this.getDefaultBaseAmount[arbPath.pair[0]], arbPath.pair, arbPath.dex0, arbPath.dex1, arbPath);
+            const defaultCapacity = this.calcDexArbOut(this.getDefaultBaseAmount(arbPath.pair[0]), arbPath.pair, arbPath.dex0, arbPath.dex1, arbPath);
             this.setCurrentCapacity(defaultCapacity);
             return arbPath;
           }
