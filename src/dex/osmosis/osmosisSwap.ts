@@ -40,7 +40,7 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
   private rawPools: Pool[];
   blockRouter: OptimizedRoutes = null;
 
-  constructor(public readonly rpcEndpoint: string) {
+  constructor(public readonly rpcEndpoint: string, public readonly restEndpoint: string) {
     super();
   }
 
@@ -97,7 +97,7 @@ export default class OsmosisSwap extends DexProtocol<'osmosis'> {
   public override subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<Pool> [], height: number }> {
     return new Observable<{ pools: IPool<Pool>[], height: number }>(observer => {
       createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => {
-        getOsmoPools()
+        getOsmoPools(this.restEndpoint)
           .then(osmoPools => {
             this.blockRouter = null;
             const latestOsmoPools = osmoPools.map(op => ({

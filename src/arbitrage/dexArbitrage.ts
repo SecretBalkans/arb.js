@@ -125,14 +125,17 @@ export class ArbPath<T extends DexProtocolName, K extends DexProtocolName, B> {
 }
 
 type ArbPair = [SwapToken, SwapToken];
+const OVERRIDES_DEFAULT_BASE_AMOUNTS = {
+  WBTC: 0.001,
+  WETH: 0.01
+}
 
 export class ArbitrageMonitor {
 
   public readonly pairs: ArbPair[];
-  private readonly DEFAULT_BASE_AMOUNT: Amount = BigNumber(50);
+  private readonly _DEFAULT_BASE_AMOUNT: Amount = BigNumber(50);
   public readonly dexNames: DexProtocolName[];
   public readonly dexPairs: [DexProtocolName, DexProtocolName][];
-
   constructor(private readonly store: DexStore, pairs: ArbPair[]) {
     this.pairs = pairs;
     this.dexNames = Object.keys(this.store.dexSubscriptions) as DexProtocolName[];
@@ -142,6 +145,10 @@ export class ArbitrageMonitor {
         this.dexPairs.push([this.dexNames[i], this.dexNames[j]]);
       }
     }
+  }
+
+  getDefaultBaseAmount(token: SwapToken) {
+    return OVERRIDES_DEFAULT_BASE_AMOUNTS[token] || this._DEFAULT_BASE_AMOUNT;
   }
 
   calcDexArbOut<T extends DexProtocolName, K extends DexProtocolName, B extends any>(
@@ -189,7 +196,7 @@ export class ArbitrageMonitor {
     let diff;
     let count = 0;
     let baseAmount = path.amountIn;
-    let step = path.amountIn.isEqualTo(this.DEFAULT_BASE_AMOUNT) ? path.amountIn.multipliedBy(0.5) : path.amountOut.minus(path.amountIn).absoluteValue();
+    let step = path.amountIn.isEqualTo(this.getDefaultBaseAmount(path.pair[0])) ? path.amountIn.multipliedBy(0.5) : path.amountOut.minus(path.amountIn).absoluteValue();
     let prevAmount = path.amountIn;
     const restCalcArgs = [path.pair, path.dex0, path.dex1, path];
     let previousOutcome = this.calcDexArbOut.apply(this, [baseAmount, ...restCalcArgs]).amountOut;
@@ -244,11 +251,13 @@ export class ArbitrageMonitor {
         const result = _.flatMap(changedPairs, changedPair => {
           console.time(changedPair.join('-'));
           const baseAmount = this.getCurrentCapacity({pair: changedPair, dex0, dex1});
+          const reverseChangedPair = reversePair(changedPair);
+          const reverseBaseAmount = this.getCurrentCapacity({pair: reverseChangedPair, dex0, dex1});
           const pathResults = [
             this.calcDexArbOut(baseAmount, changedPair, dex0, dex1),
             this.calcDexArbOut(baseAmount, changedPair, dex1, dex0),
-            this.calcDexArbOut(baseAmount, reversePair(changedPair), dex0, dex1),
-            this.calcDexArbOut(baseAmount, reversePair(changedPair), dex1, dex0),
+            this.calcDexArbOut(reverseBaseAmount, reverseChangedPair, dex0, dex1),
+            this.calcDexArbOut(reverseBaseAmount, reverseChangedPair, dex1, dex0),
           ];
           console.timeEnd(changedPair.join('-'));
           return pathResults;
@@ -263,7 +272,7 @@ export class ArbitrageMonitor {
             return capacityUntilBalance;
           } else {
             // Reset capacity of arb routes that are not winning anymore
-            const defaultCapacity = this.calcDexArbOut(this.DEFAULT_BASE_AMOUNT, arbPath.pair, arbPath.dex0, arbPath.dex1, arbPath);
+            const defaultCapacity = this.calcDexArbOut(this.getDefaultBaseAmount[arbPath.pair[0]], arbPath.pair, arbPath.dex0, arbPath.dex1, arbPath);
             this.setCurrentCapacity(defaultCapacity);
             return arbPath;
           }
@@ -281,7 +290,7 @@ export class ArbitrageMonitor {
                                dex0,
                                dex1,
                              }: { pair: ArbPair, dex0: DexProtocol<DexProtocolName>, dex1: DexProtocol<DexProtocolName> }): Amount {
-    return this.capacityMap[this.getCapacityKey({pair, dex0, dex1})] || this.DEFAULT_BASE_AMOUNT;
+    return this.capacityMap[this.getCapacityKey({pair, dex0, dex1})] || this.getDefaultBaseAmount(pair[0]);
   }
 
   private getCapacityKey({

@@ -6,11 +6,15 @@ import _ from 'lodash';
 
 const logger = new Logger('OsmoTokens');
 
+const OSMO_TOKEN_COIN_OVERRIDES = {
+  ETH: 'WETH'
+};
 const denomsToCoinInfo: Record<Denom, { chainId: string, token: Token | NonArbedToken }> = {};
 const tokenToDenomInfo: Record<Token, { chainId: string, denom: Denom, channelId: string, decimals: number }> = {};
 ChainInfos.forEach(chInfo => {
   chInfo.currencies.forEach(curr => {
-    const parsedCoinDenom = curr.coinDenom.replace('-', '');
+    let parsedCoinDenom = curr.coinDenom.replace('-', '');
+    parsedCoinDenom = OSMO_TOKEN_COIN_OVERRIDES[parsedCoinDenom] || parsedCoinDenom;
     if (parsedCoinDenom === 'OSMO') {
       tokenToDenomInfo[SwapToken.OSMO] = {
         chainId: chInfo.chainId,

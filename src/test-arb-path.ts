@@ -6,7 +6,7 @@ import ArbMonitorUploader from './monitor/arb-upload';
 
 (async () => {
   const dexStore = new DexStore([
-      new OsmosisSwap('https://rpc-osmosis.ecostake.com'),
+      new OsmosisSwap('https://rpc-osmosis.ecostake.com', 'https://osmosis-api.lavenderfive.com:443'),
       new ShadeSwap('https://rpc.secret.express', true)
     ]
   );
@@ -46,6 +46,11 @@ import ArbMonitorUploader from './monitor/arb-upload';
     [SwapToken.INJ, SwapToken.stINJ],
     [SwapToken.USDC, SwapToken.stkATOM],
     [SwapToken.USDC, SwapToken.qATOM],
+    [SwapToken.USDC, SwapToken.WBTC],
+    [SwapToken.USDC, SwapToken.WETH],
+    [SwapToken.SCRT, SwapToken.WBTC],
+    [SwapToken.SCRT, SwapToken.WETH],
+    [SwapToken.WETH, SwapToken.WBTC],
   ]);
 
   // arbitrage.subscribeArbs().subscribe({

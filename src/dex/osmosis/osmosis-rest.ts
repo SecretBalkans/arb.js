@@ -13,11 +13,6 @@ import { PoolId } from '../types/dex-types';
 import incentivizedPoolIds from './incentivizedPoolIds';
 import OsmosisCalc from "./osmosis-calc";
 
-const agent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 3000,
-  maxSockets: 5,
-});
 // tslint:disable-next-line:one-variable-per-declaration
 let poolsLiquidity, shouldRefreshPoolsLiquidity = true;
 
@@ -32,9 +27,8 @@ async function getPoolsLiquidity() {
 
 let allPools: Pool[];
 
-export async function getOsmoPools(): Promise<Pool[]> {
-  const osmoReq = await fetchTimeout('https://osmosis.stakesystems.io/osmosis/gamm/v1beta1/pools?pagination.limit=1250', {
-    agent,
+export async function getOsmoPools(url = 'https://rest-osmosis.ecostake.com'): Promise<Pool[]> {
+  const osmoReq = await fetchTimeout(`${url}/osmosis/gamm/v1beta1/pools?pagination.limit=1250`, {
     compress: true,
     'headers': {
       'accept': 'application/json, text/plain, */*',
