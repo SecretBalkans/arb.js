@@ -6,8 +6,10 @@ import ArbMonitorUploader from './monitor/arb-upload';
 
 (async () => {
   const dexStore = new DexStore([
-      new OsmosisSwap('https://rpc-osmosis.ecostake.com', 'https://osmosis-api.lavenderfive.com:443'),
-      new ShadeSwap('https://rpc.secret.express', true)
+      new OsmosisSwap('https://rpc-osmosis.ecostake.com',
+        'https://osmosis-api.lavenderfive.com:443'),
+      new ShadeSwap('https://rpc.secret.express',
+        true)
     ]
   );
   /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
@@ -22,34 +24,34 @@ import ArbMonitorUploader from './monitor/arb-upload';
     [SwapToken.SCRT, SwapToken.USDC],
     [SwapToken.SCRT, SwapToken.OSMO],
     [SwapToken.SCRT, SwapToken.ATOM],
-    [SwapToken.SCRT, SwapToken.BLD],
-    [SwapToken.SCRT, SwapToken.IST],
-    [SwapToken.SCRT, SwapToken.CMST],
-    [SwapToken.SCRT, SwapToken.CMST],
+    // [SwapToken.SCRT, SwapToken.BLD],
+    // [SwapToken.SCRT, SwapToken.IST],
+    // [SwapToken.SCRT, SwapToken.CMST],
+    // [SwapToken.SCRT, SwapToken.CMST],
     [SwapToken.SCRT, SwapToken.stOSMO],
-    [SwapToken.SCRT, SwapToken.qATOM],
+    // [SwapToken.SCRT, SwapToken.qATOM],
     [SwapToken.SCRT, SwapToken.INJ],
-    [SwapToken.CMST, SwapToken.IST],
-    [SwapToken.BLD, SwapToken.USDC],
-    [SwapToken.USDT, SwapToken.USDC],
+    // [SwapToken.CMST, SwapToken.IST],
+    // [SwapToken.BLD, SwapToken.USDC],
+    // [SwapToken.USDT, SwapToken.USDC],
     [SwapToken.ATOM, SwapToken.USDC],
     [SwapToken.ATOM, SwapToken.stkATOM],
     [SwapToken.ATOM, SwapToken.OSMO],
     [SwapToken.ATOM, SwapToken.qATOM],
-    [SwapToken.stATOM, SwapToken.stOSMO],
+    // [SwapToken.stATOM, SwapToken.stOSMO],
     [SwapToken.stOSMO, SwapToken.USDC],
     [SwapToken.stATOM, SwapToken.ATOM],
-    [SwapToken.stOSMO, SwapToken.OSMO],
-    [SwapToken.stJUNO, SwapToken.JUNO],
+    // [SwapToken.stOSMO, SwapToken.OSMO],
+    // [SwapToken.stJUNO, SwapToken.JUNO],
     [SwapToken.OSMO, SwapToken.USDC],
     [SwapToken.INJ, SwapToken.USDC],
-    [SwapToken.INJ, SwapToken.stINJ],
-    [SwapToken.USDC, SwapToken.stkATOM],
-    [SwapToken.USDC, SwapToken.qATOM],
+    // [SwapToken.INJ, SwapToken.stINJ],
+    // [SwapToken.USDC, SwapToken.stkATOM],
+    // [SwapToken.USDC, SwapToken.qATOM],
     [SwapToken.USDC, SwapToken.WBTC],
     [SwapToken.USDC, SwapToken.WETH],
-    [SwapToken.SCRT, SwapToken.WBTC],
-    [SwapToken.SCRT, SwapToken.WETH],
+    // [SwapToken.SCRT, SwapToken.WBTC],
+    // [SwapToken.SCRT, SwapToken.WETH],
     [SwapToken.WETH, SwapToken.WBTC],
   ]);
 

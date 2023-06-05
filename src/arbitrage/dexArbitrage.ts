@@ -256,8 +256,8 @@ export class ArbitrageMonitor {
           const pathResults = [
             this.calcDexArbOut(baseAmount, changedPair, dex0, dex1),
             this.calcDexArbOut(baseAmount, changedPair, dex1, dex0),
-            this.calcDexArbOut(reverseBaseAmount, reverseChangedPair, dex0, dex1),
-            this.calcDexArbOut(reverseBaseAmount, reverseChangedPair, dex1, dex0),
+            // this.calcDexArbOut(reverseBaseAmount, reverseChangedPair, dex0, dex1),
+            // this.calcDexArbOut(reverseBaseAmount, reverseChangedPair, dex1, dex0),
           ];
           console.timeEnd(changedPair.join('-'));
           return pathResults;
