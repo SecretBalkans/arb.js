@@ -1,18 +1,18 @@
-import { DirectSecp256k1Wallet, DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
+import {DirectSecp256k1Wallet, DirectSecp256k1HdWallet} from '@cosmjs/proto-signing';
 
-import { AminoSignResponse, StdSignDoc, AccountData } from 'secretjsbeta/dist/wallet_amino';
+import {AminoSignResponse, StdSignDoc, AccountData} from 'secretjsbeta/dist/wallet_amino';
 
-import { Secp256k1Pen } from './Secp256k1Pen';
-import { Secp256k1Wallet, StdSignature } from '@cosmjs/launchpad';
-import { Bip39, EnglishMnemonic, Slip10, Slip10Curve, stringToPath } from '@cosmjs/crypto';
-import { fromBase64, MsgExecuteContract, SecretNetworkClient } from 'secretjsbeta';
+import {Secp256k1Pen} from './Secp256k1Pen';
+import {Secp256k1Wallet, StdSignature} from '@cosmjs/launchpad';
+import {Bip39, EnglishMnemonic, Slip10, Slip10Curve, stringToPath} from '@cosmjs/crypto';
+import {fromBase64, MsgExecuteContract, SecretNetworkClient} from 'secretjsbeta';
 
-import { SignDoc } from 'secretjsbeta/dist/protobuf/cosmos/tx/v1beta1/tx';
-import { serializeSignDoc, serializeStdSignDoc } from './signUtils';
+import {SignDoc} from 'secretjsbeta/dist/protobuf/cosmos/tx/v1beta1/tx';
+import {serializeSignDoc, serializeStdSignDoc} from './signUtils';
 import _ from 'lodash';
-import { SecretContractAddress } from '../dex/shade/types';
+import {SecretContractAddress} from '../dex/shade/types';
 
-export type ArbWalletConfig = { mnemonic?: string, privateHex?: string, secretNetworkViewingKey: string, secretLcdUrl?: string };
+export type ArbWalletConfig = { mnemonic?: string, privateHex?: string, secretNetworkViewingKey?: string, secretLcdUrl?: string };
 
 export enum ArbChain {
   SECRET,
@@ -32,12 +32,10 @@ export class ArbWallet {
   private readonly CODE_HASH_CACHE = {};
   private readonly CONTRACT_MSG_CACHE = {};
   private secretClient: SecretNetworkClient;
+  private secretQueryClient: SecretNetworkClient;
 
   constructor(config: ArbWalletConfig) {
     this.config = config;
-    if (!this.config.mnemonic && !this.config.privateHex) {
-      throw new Error(`Config ./.secrets.js should contain valid cosmos: { privateHex: "i.e. keplr private hex string" } OR cosmos: { mnemonic: "space separated words" }`);
-    }
   }
 
   private getChainConfig(chain: ArbChain): ArbChainConfig {
@@ -71,12 +69,13 @@ export class ArbWallet {
     chain: ArbChain,
     pathSuffix = '0',
   ) {
-    const { bech32Prefix, coinType } = this.getChainConfig(chain);
+    const {bech32Prefix, coinType} = this.getChainConfig(chain);
     const mnemonic = this.config.mnemonic;
     if (mnemonic) {
       let parsedMnemonic = mnemonic;
       try {
         parsedMnemonic = Buffer.from(fromBase64(mnemonic)).toString('utf-8');
+        // tslint:disable-next-line:no-empty
       } catch {
       }
       return await DirectSecp256k1HdWallet.fromMnemonic(parsedMnemonic, {
@@ -85,7 +84,7 @@ export class ArbWallet {
       });
     } else {
       const privateKey = this.getPrivateKey();
-      let uint8arr = new Uint8Array(privateKey);
+      const uint8arr = new Uint8Array(privateKey);
       return await DirectSecp256k1Wallet.fromKey(uint8arr, bech32Prefix);
     }
   }
@@ -100,16 +99,17 @@ export class ArbWallet {
       let parsedMnemonic = mnemonic;
       try {
         parsedMnemonic = Buffer.from(fromBase64(mnemonic)).toString('utf-8');
+        // tslint:disable-next-line:no-empty
       } catch {
       }
       const mnemonicChecked = new EnglishMnemonic(parsedMnemonic);
       const seed = await Bip39.mnemonicToSeed(mnemonicChecked);
       const path = stringToPath(`m/44'/${coinType}'/${pathSuffix.includes('/') ? pathSuffix : `0'/0/${pathSuffix}`}`);
-      const { privkey } = Slip10.derivePath(Slip10Curve.Secp256k1, seed, path);
+      const {privkey} = Slip10.derivePath(Slip10Curve.Secp256k1, seed, path);
       return await Secp256k1Wallet.fromKey(privkey, bech32prefix);
     } else {
       const privateKey = this.getPrivateKey();
-      let uint8arr = new Uint8Array(privateKey);
+      const uint8arr = new Uint8Array(privateKey);
       return await Secp256k1Wallet.fromKey(uint8arr, bech32prefix);
     }
   }
@@ -120,40 +120,47 @@ export class ArbWallet {
       let parsedMnemonic = mnemonic;
       try {
         parsedMnemonic = Buffer.from(fromBase64(mnemonic)).toString('utf-8');
+        // tslint:disable-next-line:no-empty
       } catch {
       }
       return await Secp256k1Pen.fromMnemonic(parsedMnemonic);
     } else {
       const privateKey = this.getPrivateKey();
-      let uint8arr = new Uint8Array(privateKey);
+      const uint8arr = new Uint8Array(privateKey);
       return await Secp256k1Pen.fromKey(uint8arr);
     }
   }
 
   public async getSecretSigner() {
-    let pen = await this.getSecretPen();
+    const pen = await this.getSecretPen();
     return async (bytes: Uint8Array): Promise<StdSignature> => {
       return pen.sign(bytes);
     };
   };
 
-  public async getSecretNetworkClient(chain = ArbChain.SECRET, url: string = this.config.secretLcdUrl): Promise<SecretNetworkClient> {
-    if (!this.secretClient) {
-      const senderAddress = await this.getAddress(chain);
-      const signer = await this.getSecretSigner();
+  public async getSecretNetworkClient({
+                                        chain = ArbChain.SECRET,
+                                        url = this.config.secretLcdUrl,
+                                        queryOnly = false
+                                      }: { chain?: ArbChain, url?: string, queryOnly?: boolean } = {}): Promise<SecretNetworkClient> {
+    if ((queryOnly && !this.secretQueryClient) || (!queryOnly && !this.secretClient)) {
       const getSecretPen = this.getSecretPen.bind(this);
-      this.secretClient = new SecretNetworkClient({
-        url: url,
+      const senderAddress = queryOnly ? null : await this.getAddress(chain);
+      const client = new SecretNetworkClient({
+        url,
         wallet: {
           async signAmino(
             signerAddress: string,
             signDoc: StdSignDoc,
           ): Promise<AminoSignResponse> {
-
+            if (queryOnly) {
+              throw new Error('Query only secret client cannot be used for signing');
+            }
             const accounts = await this.getAccounts();
             if (!accounts.find(a => a.address === signerAddress)) {
               throw new Error(`Address ${signerAddress} not found in wallet`);
             }
+            const signer = await this.getSecretSigner();
 
             const signature = await signer(serializeStdSignDoc(signDoc));
 
@@ -161,17 +168,21 @@ export class ArbWallet {
               signed: {
                 ...signDoc,
               },
-              signature: signature,
+              signature,
             };
           },
           async signDirect(signerAddress: string, signDoc: SignDoc): Promise<{
             readonly signed: SignDoc;
             readonly signature: StdSignature;
           }> {
+            if (queryOnly) {
+              throw new Error('Query only secret client cannot be used for signing');
+            }
             const accounts = await this.getAccounts();
             if (!accounts.find(a => a.address === signerAddress)) {
               throw new Error(`Address ${signerAddress} not found in wallet`);
             }
+            const signer = await this.getSecretSigner();
 
             const signature = await signer(await serializeSignDoc(signDoc));
             return {
@@ -182,6 +193,9 @@ export class ArbWallet {
             };
           },
           async getAccounts(): Promise<readonly AccountData[]> {
+            if (queryOnly) {
+              throw new Error('Query only secret client cannot be used for signing');
+            }
             return [
               {
                 address: senderAddress,
@@ -194,9 +208,14 @@ export class ArbWallet {
         chainId: this.getChainConfig(chain).chainId,
         walletAddress: senderAddress,
       });
+      if (queryOnly) {
+        this.secretQueryClient = client
+      } else {
+        this.secretClient = client
+      }
     }
 
-    return this.secretClient;
+    return queryOnly ? this.secretQueryClient : this.secretClient;
   }
 
   public async getAddress(chain: ArbChain, suffix = '0'): Promise<string> {
@@ -208,9 +227,9 @@ export class ArbWallet {
   /**
    * Gets the secret balance of an asset by address and decimals to pass.
    * TODO: just pass decimals and handle SNIP-20/SNIP-25 by querying token info and fetching the decimals
-   @param asset.address string
-   @param asset.decimals number
-   * */
+   * @param asset.address string
+   * @param asset.decimals number
+   */
   public async getSecretBalance(asset: { address: SecretContractAddress, decimals: number }): Promise<number> {
     const client = await this.getSecretNetworkClient();
     const result = await this.querySecretContract(asset.address, {
@@ -238,9 +257,9 @@ export class ArbWallet {
    * @param useResultCache allow caching of result. Useful if querying static blockchain data
    */
   public async querySecretContract<T extends object, R extends any>(contractAddress: SecretContractAddress, msg: T, codeHash?: string, useResultCache = false) {
-    const client = await this.getSecretNetworkClient();
+    const client = await this.getSecretNetworkClient({queryOnly: true});
     if (codeHash || !this.CODE_HASH_CACHE[contractAddress]) {
-      this.CODE_HASH_CACHE[contractAddress] = (await client.query.compute.codeHashByContractAddress({ contract_address: contractAddress })).code_hash;
+      this.CODE_HASH_CACHE[contractAddress] = (await client.query.compute.codeHashByContractAddress({contract_address: contractAddress})).code_hash;
     }
     let cached;
     const cacheKey = `${contractAddress}.${Object.getOwnPropertyNames(msg)[0]}`;

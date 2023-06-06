@@ -24,10 +24,7 @@ import {
 const arb = new ArbWallet({
   // secretLcdUrl: 'https://lcd.secret.express',
   secretLcdUrl: 'https://lcd-secret.keplr.app',
-  // secretLcdUrl: 'https://secret-api.lavenderfive.com:443',
-  mnemonic: config.secrets.cosmos.mnemonic,
-  privateHex: config.secrets.cosmos.privateHex,
-  secretNetworkViewingKey: config.secrets.secret.apiKey,
+  // secretLcdUrl: 'https://secret-api.lavenderfive.com:443'
 });
 
 
