@@ -84,9 +84,8 @@ let logger;
     );
     ipc.server.start();
   } else {
-    const workerId = cluster.worker.id;
-    logger = new Logger(`Worker${workerId}`);
-    ipc.config.id = `Worker${workerId}`;
+    logger = new Logger(`Worker${processIndex}`);
+    ipc.config.id = `Worker${processIndex}`;
     ipc.config.retry = 1000;
     logger.log(`Started. Will connect to aster.`);
     const arbObs = new Subject<ArbPairSerializedUpdate>();
@@ -99,7 +98,7 @@ let logger;
             arbObs.next(data);
           },
         );
-        ipc.of.ArbMaster.emit('online', workerId);
+        ipc.of.ArbMaster.emit('online', processIndex);
       },
     );
 
