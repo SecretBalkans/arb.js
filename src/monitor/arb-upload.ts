@@ -1,7 +1,7 @@
 import {
-  ArbitrageMonitorCalculator,
-  ArbitrageMonitorMaster,
-  ArbPath, DexHeightSubscription, SerializedDexProtocolsUpdate,
+  ArbCalculator,
+  ArbitrageMonitorMaster, ArbPairFullUpdate, ArbPairUpdateLight,
+  ArbPath, DexHeightSubscription, DexProtocolsUpdateFull,
 } from '../arbitrage/dexArbitrage';
 import {DexProtocolName} from '../dex/types/dex-types';
 import * as https from 'http';
@@ -16,6 +16,13 @@ import {Prices} from "../prices/prices";
 import cluster from "cluster";
 
 
+export type ArbCalculatorObs = {
+  full?: Observable<ArbPairFullUpdate>
+  light?: {
+    pairs: Observable<ArbPairUpdateLight>,
+    dexUpdates: Observable<DexProtocolsUpdateFull>
+  }
+};
 export default class ArbMonitorUploader {
   private readonly persistedArbPaths: Record<string, ArbV1<number>> = {};
   private readonly latestArbPaths: Record<string, ArbPathParsed> = {};
@@ -24,8 +31,8 @@ export default class ArbMonitorUploader {
 
   constructor(private readonly subscribes: {
     arbs: {
-      obs: Observable<{ pair: string; d: SerializedDexProtocolsUpdate }>
-      calculator: ArbitrageMonitorCalculator,
+      obs: ArbCalculatorObs,
+      calculator: ArbCalculator,
     },
     heightsObs?: Observable<DexHeightSubscription>,
     pricesObs?: Observable<Prices>
@@ -53,7 +60,7 @@ export default class ArbMonitorUploader {
     }
   `).then(all => {
       this.subscribes.arbs.calculator.enableCalculation(
-        this.subscribes.arbs?.obs
+        this.subscribes.arbs.obs
       ).subscribe({
         next: (arbPath) => {
           this.nextTs();

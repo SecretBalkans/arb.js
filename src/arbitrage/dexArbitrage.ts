@@ -25,6 +25,7 @@ import {ShadePair} from "../dex/shade/shade-api-utils";
 import {OsmosisPoolRaw} from "../dex/osmosis/types";
 import {isStablePool} from "../dex/osmosis/osmosis-calc";
 import {StablePool, WeightedPool} from "../lib/@osmosis/packages/pools/src";
+import {ArbCalculatorObs} from "../monitor/arb-upload";
 
 const logger = new Logger('ArbitrageInternal');
 
@@ -156,10 +157,10 @@ export class ArbitrageMonitorMaster {
     return this.store.subscribeDexHeights();
   }
 
-  public subscribeArbs(): Subject<ArbPairSerializedUpdate> {
+  public subscribeArbs(): Subject<ArbPairFullUpdate> {
     let d0poolMap: Record<PoolId, true>;
     let d1poolMap: Record<PoolId, true>;
-    const subject = new Subject<ArbPairSerializedUpdate>();
+    const subject = new Subject<ArbPairFullUpdate>();
     this.store.subscribeDexProtocolsCombined().subscribe((dexProtocolUpdates => {
       const dex0 = dexProtocolUpdates[0].dex;
       const dex1 = dexProtocolUpdates[1].dex;
@@ -212,40 +213,49 @@ class PersistedPoolData<T extends DexPool> {
   }
 }
 
-export class ArbitrageMonitorCalculator {
+export class ArbCalculator {
   private readonly _DEFAULT_BASE_AMOUNT: Amount = BigNumber(50);
 
   constructor(private readonly dexProtocols: DexProtocol<DexProtocolName>[], private readonly pairs: ArbPair[]) {
   }
 
-  public enableCalculation(qObs: Observable<ArbPairSerializedUpdate>): Observable<ArbPath<DexProtocolName, DexProtocolName, any>> {
-    const q: Record<string, SerializedDexProtocolsUpdate> = {};
-
-    function parseRawPool(rawPools: RawPoolInfo<DexProtocolName>[]): (StablePool | WeightedPool | ShadePair)[] {
-      return rawPools.map(poolRaw => {
-        if (isOsmosisPoolRaw(poolRaw)) {
-          if (isStablePool(poolRaw)) {
-            return new StablePool(poolRaw);
-          } else {
-            return new WeightedPool(poolRaw);
-          }
+  private parseRawPool(rawPools: RawPoolInfo<DexProtocolName>[]): (StablePool | WeightedPool | ShadePair)[] {
+    return rawPools.map(poolRaw => {
+      if (isOsmosisPoolRaw(poolRaw)) {
+        if (isStablePool(poolRaw)) {
+          return new StablePool(poolRaw);
         } else {
-          return poolRaw;
+          return new WeightedPool(poolRaw);
         }
-      })
-    }
-
-    qObs.pipe(filter(d => !!_.find(d.pair))).subscribe(({pair, d}) => {
-      q[pair] = d
-      const rawPools0 = parseRawPool(d[0].rawPools);
-      const rawPools1 = parseRawPool(d[1].rawPools);
-      if (this.dexProtocols[0].name === d[0].dexName) {
-        this.dexProtocols[0].updateRawPools(rawPools0);
-        this.dexProtocols[1].updateRawPools(rawPools1);
       } else {
-        this.dexProtocols[0].updateRawPools(rawPools1);
-        this.dexProtocols[1].updateRawPools(rawPools0);
+        return poolRaw;
       }
+    })
+  }
+
+  public fullDexUpdate(d: DexProtocolsUpdateFull) {
+    const rawPools0 = this.parseRawPool(d[0].rawPools);
+    const rawPools1 = this.parseRawPool(d[1].rawPools);
+    if (this.dexProtocols[0].name === d[0].dexName) {
+      this.dexProtocols[0].updateRawPools(rawPools0);
+      this.dexProtocols[1].updateRawPools(rawPools1);
+    } else {
+      this.dexProtocols[0].updateRawPools(rawPools1);
+      this.dexProtocols[1].updateRawPools(rawPools0);
+    }
+  }
+
+  public enableCalculation(obs: ArbCalculatorObs): Observable<ArbPath<DexProtocolName, DexProtocolName, any>> {
+    const q: Record<string, DexProtocolUpdateLight> = {};
+
+
+    obs.light?.pairs.pipe(filter(d => !!_.find(d.pair))).subscribe((update) => {
+      q[update.pair] = update.d;
+    });
+    obs.light?.dexUpdates.subscribe(this.fullDexUpdate.bind(this));
+    obs.full?.pipe(filter(d => !!_.find(d.pair))).subscribe((update) => {
+      q[update.pair] = update.d.map(full => _.pick(full, ['dexName', 'height']));
+      this.fullDexUpdate(update.d);
     });
     return new Observable<ArbPath<DexProtocolName, DexProtocolName, any>>((emitter) => {
       Aigle.doWhilst(async () => {
@@ -410,11 +420,13 @@ export class ArbitrageMonitorCalculator {
 type DexPoolsSubscription = { dex: DexProtocol<DexProtocolName>, pools: IPool<PoolInfo<DexProtocolName>>[], height: number };
 
 export type DexHeightSubscription = { dex: DexProtocol<DexProtocolName>, height: number };
-export type ArbPairSerializedUpdate = { pair: string, d: SerializedDexProtocolsUpdate };
+export type ArbPairFullUpdate = { pair: string, d: DexProtocolsUpdateFull };
+export type ArbPairUpdateLight = { pair: string, d: DexProtocolUpdateLight };
+export type DexProtocolUpdateLight = { dexName: DexProtocolName, height: number }[]
+export type DexProtocolsUpdateFull = { rawPools: RawPoolInfo<DexProtocolName>[], dexName: DexProtocolName, height: number }[];
 
 type DexProtocolsUpdate = { dex: DexProtocol<DexProtocolName>, pools: IPool<PoolInfo<DexProtocolName>>[]; height: number };
 type RawPoolInfo<T extends DexProtocolName> = T extends 'osmosis' ? OsmosisPoolRaw : ShadePair;
-export type SerializedDexProtocolsUpdate = { dexName: DexProtocolName, rawPools: RawPoolInfo<DexProtocolName>[]; height: number }[];
 
 function isOsmosisPoolRaw(rawPoolInfo: RawPoolInfo<DexProtocolName>): rawPoolInfo is OsmosisPoolRaw {
   return !!(rawPoolInfo as OsmosisPoolRaw)["@type"];

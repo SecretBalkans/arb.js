@@ -1,11 +1,11 @@
 import {
-  ArbitrageMonitorCalculator,
+  ArbCalculator,
   ArbitrageMonitorMaster,
-  ArbPair, ArbPairSerializedUpdate,
-  DexStore,
-  SerializedDexProtocolsUpdate
+  ArbPair, ArbPairUpdateLight,
+  DexProtocolsUpdateFull,
+  DexStore
 } from './arbitrage/dexArbitrage';
-import {SwapToken} from './dex/types/dex-types';
+import {DexProtocolName, SwapToken} from './dex/types/dex-types';
 import OsmosisSwap from './dex/osmosis/osmosisSwap';
 import ShadeSwap from './dex/shade/shadeSwap';
 import ArbMonitorUploader, {execute} from './monitor/arb-upload';
@@ -63,16 +63,27 @@ let logger;
     const obs = arbitrageMonitor.subscribeArbs();
     const masterUploader = new ArbMonitorUploader({
       arbs: {
-        obs: obs.asObservable(),
-        calculator: new ArbitrageMonitorCalculator(dexProtocols, processPairs)
+        obs: {
+          full: obs.asObservable()
+        },
+        calculator: new ArbCalculator(dexProtocols, processPairs)
       },
       heightsObs: arbitrageMonitor.subscribeHeights(),
       pricesObs: await subscribePrices()
     })
     ipc.config.id = 'ArbMaster';
     ipc.config.retry = 1000;
+    const lastUpdates: Partial<Record<DexProtocolName, number>> = {};
     obs.subscribe((d) => {
-      ipc.server.broadcast('arbDexUpdate', d);
+      if(_.some(d.d, (update) => {
+        return lastUpdates[update.dexName] !== update.height;
+      })) {
+        d.d.forEach((update) => lastUpdates[update.dexName] = update.height)
+        // noinspection TypeScriptValidateJSTypes
+        ipc.server.broadcast('dexProtocolsUpdateTopic', d.d)
+      }
+      // noinspection TypeScriptValidateJSTypes
+      ipc.server.broadcast('arbPairUpdateTopic', d.pair);
     })
     ipc.serve(
       () => {
@@ -90,7 +101,8 @@ let logger;
     ipc.config.id = `Worker${processIndex}`;
     ipc.config.retry = 1000;
     logger.log(`Started. Will connect to Master.`);
-    const arbObs = new Subject<ArbPairSerializedUpdate>();
+    const pairsObs = new Subject<ArbPairUpdateLight>();
+    const dexObs = new Subject<DexProtocolsUpdateFull>();
     await Promise.all([
       initShadeTokens(),
       getPairsRaw(),
@@ -99,9 +111,15 @@ let logger;
       'ArbMaster',
       () => {
         ipc.of.ArbMaster.on(
-          'arbDexUpdate',
-          (data: ArbPairSerializedUpdate) => {
-            arbObs.next(data);
+          'arbPairUpdateTopic',
+          (data: ArbPairUpdateLight) => {
+            pairsObs.next(data);
+          },
+        );
+        ipc.of.ArbMaster.on(
+          'dexProtocolsUpdateTopic',
+          (data: DexProtocolsUpdateFull) => {
+            dexObs.next(data);
           },
         );
         ipc.of.ArbMaster.emit('online', processIndex);
@@ -109,8 +127,13 @@ let logger;
     );
     const arbUploader = new ArbMonitorUploader({
       arbs: {
-        obs: arbObs.asObservable(),
-        calculator: new ArbitrageMonitorCalculator(dexProtocols, processPairs)
+        obs: {
+          light: {
+            pairs: pairsObs.asObservable(),
+            dexUpdates: dexObs.asObservable(),
+          }
+        },
+        calculator: new ArbCalculator(dexProtocols, processPairs)
       },
     })
   }
