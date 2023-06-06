@@ -26,6 +26,7 @@
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.43",
     "node-fetch": "2.6.9",
+    "node-ipc": "^11.1.0",
     "osmojs": "^15.2.1",
     "secretjsbeta": "npm:secretjs@^1.8.1"
   },
