@@ -13,5 +13,7 @@ export interface ArbPathParsed {
   route1: SerializedRoute<DexProtocolName>;
   error1: string;
   error0: string;
+  height0: number;
+  height1: number;
   pair: [SwapToken, SwapToken]
 }

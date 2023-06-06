@@ -32,6 +32,8 @@ export interface ArbV1Raw {
   token_0: string,
   token_1: string
   ts: Date
+  height_1: number;
+  height_0: number;
 }
 
 export interface ArbV1<T extends number | BigNumber> {
@@ -49,6 +51,8 @@ export interface ArbV1<T extends number | BigNumber> {
   token1: SwapToken;
   lastTs: Date;
   ts: Date;
+  height0: number;
+  height1: number;
 }
 
 export function isShadePathRaw(poolRaw: WeightedPoolRaw | StablePoolRaw | ShadeRoutePoolEssential | TokenPairInfoRaw): poolRaw is ShadeRoutePoolEssential {
@@ -129,6 +133,8 @@ export function toRawArbV1(json: ArbV1<number>): ArbV1Raw {
     route_1: serializeRoute(json.route1),
     token_0: json.token0,
     token_1: json.token1,
+    height_0: json.height0,
+    height_1: json.height1,
     ts: json.ts,
   };
 }
@@ -165,6 +171,8 @@ export function parseRawArbV1Number(arb: ArbV1Raw): ArbV1<number> {
     token0: validateSwapToken(arb.token_0),
     token1: validateSwapToken(arb.token_1),
     ts: new Date(arb.ts),
+    height0: arb.height_0,
+    height1: arb.height_1,
   };
 }
 

@@ -27,13 +27,13 @@ async function getPoolsLiquidity() {
 
 let allPools: Pool[];
 
-export async function getOsmoPools(url = 'https://rest-osmosis.ecostake.com'): Promise<Pool[]> {
+export async function getOsmoPools(url = 'https://rest-osmosis.ecostake.com', timeout = 10000): Promise<Pool[]> {
   const osmoReq = await fetchTimeout(`${url}/osmosis/gamm/v1beta1/pools?pagination.limit=1250`, {
     compress: true,
     'headers': {
       'accept': 'application/json, text/plain, */*',
     },
-  }, 30000);
+  }, timeout);
   const pl = await getPoolsLiquidity();
   allPools = osmoReq.pools
     .filter(poolRaw => !poolRaw.pool_assets?.some(p => p.token?.denom?.startsWith('gamm')))

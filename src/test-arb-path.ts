@@ -1,59 +1,54 @@
-import {ArbitrageMonitor, DexStore} from './arbitrage/dexArbitrage';
+import {ArbitrageMonitor, ArbPair, DexStore} from './arbitrage/dexArbitrage';
 import {SwapToken} from './dex/types/dex-types';
 import OsmosisSwap from './dex/osmosis/osmosisSwap';
 import ShadeSwap from './dex/shade/shadeSwap';
 import ArbMonitorUploader from './monitor/arb-upload';
-
+import {subscribePrices} from "./prices/prices";
+import { tap } from "rxjs/operators";
 (async () => {
   const dexStore = new DexStore([
-      new OsmosisSwap('https://rpc-osmosis.ecostake.com',
-        'https://osmosis-api.lavenderfive.com:443'),
-      new ShadeSwap('https://rpc.secret.express',
-        true)
+      new OsmosisSwap('https://osmosis-rpc.polkachu.com',
+        'https://api-osmosis-ia.cosmosia.notional.ventures',
+        10000),
+      new ShadeSwap('https://rpc-secret.whispernode.com:443',
+        !!1)
     ]
   );
-  /*const basicSub = dexStore.subscribeDexProtocolsCombined().subscribe({
-    next(d) {
-      console.log(`${d[0].height}/${d[0].pools.length}, ${d[1].height}/${d[1].pools.length}`);
-    },
-    error(err) {
-      console.error(err);
-    },
-  });*/
-  const arbitrage = new ArbitrageMonitor(dexStore, [
+  const pairs: ArbPair[] = [
     [SwapToken.SCRT, SwapToken.USDC],
     [SwapToken.SCRT, SwapToken.OSMO],
     [SwapToken.SCRT, SwapToken.ATOM],
-    // [SwapToken.SCRT, SwapToken.BLD],
-    // [SwapToken.SCRT, SwapToken.IST],
-    // [SwapToken.SCRT, SwapToken.CMST],
-    // [SwapToken.SCRT, SwapToken.CMST],
+    [SwapToken.SCRT, SwapToken.BLD],
+    [SwapToken.SCRT, SwapToken.IST],
+    [SwapToken.SCRT, SwapToken.CMST],
+    [SwapToken.SCRT, SwapToken.CMST],
     [SwapToken.SCRT, SwapToken.stOSMO],
-    // [SwapToken.SCRT, SwapToken.qATOM],
+    [SwapToken.SCRT, SwapToken.qATOM],
     [SwapToken.SCRT, SwapToken.INJ],
-    // [SwapToken.CMST, SwapToken.IST],
-    // [SwapToken.BLD, SwapToken.USDC],
-    // [SwapToken.USDT, SwapToken.USDC],
+    [SwapToken.CMST, SwapToken.IST],
+    [SwapToken.BLD, SwapToken.USDC],
+    [SwapToken.USDT, SwapToken.USDC],
     [SwapToken.ATOM, SwapToken.USDC],
     [SwapToken.ATOM, SwapToken.stkATOM],
     [SwapToken.ATOM, SwapToken.OSMO],
     [SwapToken.ATOM, SwapToken.qATOM],
-    // [SwapToken.stATOM, SwapToken.stOSMO],
+    [SwapToken.stATOM, SwapToken.stOSMO],
     [SwapToken.stOSMO, SwapToken.USDC],
     [SwapToken.stATOM, SwapToken.ATOM],
-    // [SwapToken.stOSMO, SwapToken.OSMO],
-    // [SwapToken.stJUNO, SwapToken.JUNO],
+    [SwapToken.stOSMO, SwapToken.OSMO],
+    [SwapToken.stJUNO, SwapToken.JUNO],
     [SwapToken.OSMO, SwapToken.USDC],
     [SwapToken.INJ, SwapToken.USDC],
-    // [SwapToken.INJ, SwapToken.stINJ],
-    // [SwapToken.USDC, SwapToken.stkATOM],
-    // [SwapToken.USDC, SwapToken.qATOM],
+    [SwapToken.INJ, SwapToken.stINJ],
+    [SwapToken.USDC, SwapToken.stkATOM],
+    [SwapToken.USDC, SwapToken.qATOM],
     [SwapToken.USDC, SwapToken.WBTC],
     [SwapToken.USDC, SwapToken.WETH],
-    // [SwapToken.SCRT, SwapToken.WBTC],
-    // [SwapToken.SCRT, SwapToken.WETH],
+    [SwapToken.SCRT, SwapToken.WBTC],
+    [SwapToken.SCRT, SwapToken.WETH],
     [SwapToken.WETH, SwapToken.WBTC],
-  ]);
+  ];
+  const arbitrage = new ArbitrageMonitor(dexStore, pairs);
 
   // arbitrage.subscribeArbs().subscribe({
   //   next(arbPaths) {
@@ -61,7 +56,7 @@ import ArbMonitorUploader from './monitor/arb-upload';
   //   },
   // });
 
-  const arbUploader = new ArbMonitorUploader(arbitrage)
+  const arbUploader = new ArbMonitorUploader(arbitrage, await subscribePrices())
   /*
   while (true) {
     console.time('cycle');

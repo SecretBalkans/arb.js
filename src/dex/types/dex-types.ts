@@ -1,6 +1,6 @@
-import { Observable } from 'rxjs';
-import { Pool } from '../../lib/@osmosis/packages/pools/src';
-import { ShadePair } from '../shade/shade-api-utils';
+import {Observable} from 'rxjs';
+import {Pool} from '../../lib/@osmosis/packages/pools/src';
+import {ShadePair} from '../shade/shade-api-utils';
 import BigNumber from 'bignumber.js';
 import {OsmosisRoute} from '../osmosis/types';
 import {SerializedShadeRouteSegmentInfo, ShadeRouteSegmentInfo} from "../shade/types";
@@ -42,6 +42,7 @@ export enum SwapToken {
   stOSMO = 'stOSMO',
   stINJ = 'stINJ',
   INJ = 'INJ',
+  USK = 'USK',
   OSMO = 'OSMO',
   JUNO = 'JUNO',
   stJUNO = 'stJUNO',
@@ -73,6 +74,7 @@ export const SwapTokenMap: Record<SwapToken, Token> = {
   stJUNO: SwapToken.stJUNO as Token,
   BLD: SwapToken.BLD as Token,
   INJ: SwapToken.INJ as Token,
+  USK: SwapToken.USK as Token,
   stINJ: SwapToken.stINJ as Token,
   stkATOM: SwapToken.stkATOM as Token,
 };
@@ -99,35 +101,6 @@ export type SerializedRoute<T extends DexProtocolName> = T extends 'osmosis' ? O
 
 export type DexPool = Pool | ShadePair;
 export type PoolInfo<T extends DexProtocolName> = T extends 'osmosis' ? Pool : ShadePair;
-
-export abstract class DexProtocol<T extends DexProtocolName> implements ICanSwap<T>, ILivePoolStore<T> {
-  name: DexProtocolName;
-  pools: IPool<PoolInfo<T>>[];
-
-  abstract calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Route<T>): { route: Route<T>; amountOut: Amount } | null;
-
-  calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools): { route?: Route<T>; amountOut?: Amount, internalSwapError: Error | null } {
-    try {
-      const result = this.calcSwapWithPools(amountIn, tokenInId, tokenOutId, pools);
-      if (!result) {
-        // noinspection ExceptionCaughtLocallyJS
-        throw new Error('No swap route');
-      }
-      return {
-        internalSwapError: null,
-        ...result,
-      };
-    } catch (err) {
-      return {
-        internalSwapError: new Error(`SwapError ${amountIn?.toString()} ${tokenInId} > ${tokenOutId} : ${err.message}\n\r${err.stack}`),
-      };
-    }
-  }
-
-  abstract subscribeToPoolsUpdate(): Observable<{ pools: IPool<PoolInfo<T>>[]; height: number }>
-
-  abstract getPoolsMap(pairs: [SwapToken, SwapToken][]): PoolId[];
-}
 
 export interface ICanSwap<T extends DexProtocolName> {
   calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, pools: Route<T>): { route: Route<T>, amountOut: Amount };

@@ -1,7 +1,6 @@
 /* tslint:disable */
 import {
   Amount,
-  DexProtocol,
   DexProtocolName,
   IPool,
   Route,
@@ -23,15 +22,17 @@ import _ from 'lodash';
 import BigNumber from 'bignumber.js';
 import ShadeCalc, {ShadeRoutePoolEssentialsIdMap} from "./shade-calc";
 import {ShadePair} from './shade-api-utils';
+import {DexProtocol} from "../types/dex-protocol";
+import {CosmosDexProtocol} from "../types/cosmos-dex-protocol";
 
 const logger = new Logger('ShadeSwap')
-export default class ShadeSwap extends DexProtocol<'shade'> {
+export default class ShadeSwap extends CosmosDexProtocol<'shade'> {
   public name = 'shade' as DexProtocolName;
   public pools: IPool<ShadePair>[];
   shadePairsMap: ShadeRoutePoolEssentialsIdMap;
 
-  constructor(public readonly rpcEndpoint: string, private readonly USE_ONLY_SHADE_API_NO_BLOCKCHAIN_QUERY = false) {
-    super();
+  constructor(rpcEndpoint: string, private readonly USE_ONLY_SHADE_API_NO_BLOCKCHAIN_QUERY = false, retryTime = 1000) {
+    super(rpcEndpoint, retryTime);
   }
 
   public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Route<'shade'>): { route: Route<'shade'>; amountOut: Amount } | null {
@@ -147,7 +148,7 @@ export default class ShadeSwap extends DexProtocol<'shade'> {
 
   public override subscribeToPoolsUpdate(retryTime = 1000): Observable<{ pools: IPool<ShadePair>[]; height: number }> {
     return new Observable<{ pools: IPool<ShadePair>[], height: number }>(observer => {
-      createCosmosObserver(this.rpcEndpoint, retryTime).subscribe(blockHeight => {
+      this.subscribeToDexHeights().subscribe(({height:blockHeight}) => {
         if (!this.isFetchingShadePairs) {
           const b = performance.now()
           this.isFetchingShadePairs = true;
@@ -165,7 +166,7 @@ export default class ShadeSwap extends DexProtocol<'shade'> {
               this.pools = latestPools;
               // We might need more properties from Parsed but here we cast to Essential
               this.shadePairsMap = parsePoolsRaw(_.map(shadePairs, 'rawInfo')) as ShadeRoutePoolEssentialsIdMap;
-              console.log('ShadePairs', performance.now() - b);
+              console.log('ShadePairs', performance.now() - b, blockHeight);
               setImmediate(() => {
                 observer.next({
                   pools: latestPools,

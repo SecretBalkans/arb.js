@@ -1,23 +1,27 @@
 import {
   ArbitrageMonitor,
-  ArbPath,
+  ArbPath, DexHeightSubscription,
 } from '../arbitrage/dexArbitrage';
 import {DexProtocolName} from '../dex/types/dex-types';
 import * as https from 'http';
 import * as http from 'http';
 import config from '../config';
 import _ from 'lodash';
-import {fetchTimeout} from '../utils';
+import {fetchTimeout, Logger} from '../utils';
 import {ArbPathParsed} from '../arbitrage/types';
 import {ArbV1, ArbV1Raw, parseRawArbV1Number, toRawArbV1} from './types';
+import {Observable} from "rxjs";
+import {Prices} from "../prices/prices";
 
 
 export default class ArbMonitorUploader {
   private readonly persistedArbPaths: Record<string, ArbV1<number>> = {};
   private readonly latestArbPaths: Record<string, ArbPathParsed> = {};
   ts: Date;
+  private readonly logger: Logger;
 
-  constructor(private readonly arbMonitor: ArbitrageMonitor) {
+  constructor(private readonly arbMonitor: ArbitrageMonitor, pricesObs?: Observable<Prices>) {
+    this.logger = new Logger('ArbUpload');
     execute(`query getAllArbs {
       arb_v1 {
         amount_bridge
@@ -34,65 +38,65 @@ export default class ArbMonitorUploader {
         token_1
         ts
         reverse_id
+        height_0
+        height_1
       }
     }
   `).then(all => {
       this.arbMonitor.subscribeArbs().subscribe({
-        next: (arbPaths) => {
+        next: (arbPath) => {
           this.nextTs();
-          const ts = this.ts;
-          const includedForUpload = {};
-          const toUpload = arbPaths.reduce((res, ap) => {
-            const json = ap.toJSON();
-            this.latestArbPaths[json.id] = json;
-            const persistedArbPath = this.persistedArbPaths[json.id];
-            includedForUpload[json.id] = true;
-            if (!persistedArbPath
-              || json.amountIn !== persistedArbPath.amountIn
-              || json.amountOut !== persistedArbPath.amountOut
-              || json.amountBridge !== persistedArbPath.amountBridge
-              || !_.isEqual(json.route0, persistedArbPath.route0)
-              || !_.isEqual(json.route1, persistedArbPath.route1)
-              || json.pair[0] !== persistedArbPath.token0
-              || json.pair[1] !== persistedArbPath.token1) {
-              // There is a change in the arb
-              const arbV1 = this.arbPathToV1(ap);
-              res.many.push(toRawArbV1(arbV1));
-            } else {
-              res.ts.push(json.id);
-            }
-            return res;
-          }, {
-            ts: [],
-            many: [],
-          } as {
-            many: ArbV1Raw[],
-            ts: string[]
-          });
-          Object.entries(this.persistedArbPaths).forEach(([id]) => {
-            if (!includedForUpload[id]) {
-              toUpload.ts.push(id)
-            }
-          });
-          toUpload.ts.forEach(id => {
-            this.persistedArbPaths[id].ts = ts;
-          });
-          this.updateManyArbTs(toUpload.ts, ts).then((res) => {
-            console.log(res);
-          }).catch(console.error.bind(console));
-
-          this.uploadManyArbs(toUpload.many).then((res) => {
-            console.log(`manyArbs`, {rows: res.rows, many: res.updateManyArbs.map(r => r.id)});
-            res.updateManyArbs.forEach(d => {
-              this.persistedArbPaths[d.id] = d.arb;
-            });
-          }).catch(console.error.bind(console));
+          const json = arbPath.toJSON();
+          this.latestArbPaths[json.id] = json;
+          const persistedArbPath = this.persistedArbPaths[json.id];
+          if (!persistedArbPath
+            || json.amountIn !== persistedArbPath.amountIn
+            || json.amountOut !== persistedArbPath.amountOut
+            || json.amountBridge !== persistedArbPath.amountBridge
+            || !_.isEqual(json.route0, persistedArbPath.route0)
+            || !_.isEqual(json.route1, persistedArbPath.route1)) {
+            // There is a change in the arb
+            const arbV1 = this.arbPathToV1(arbPath);
+            this.uploadManyArbs([toRawArbV1(arbV1)]).then((res) => {
+              this.logger.log('Updated', res.updateManyArbs[0].id);
+              res.updateManyArbs.forEach(d => {
+                this.persistedArbPaths[d.id] = d.arb;
+              });
+            }).catch(this.logger.error.bind(this.logger));
+          } else {
+            this.updateManyArbTs([arbPath.id], this.ts).then((res) => {
+              this.logger.log('TS', arbPath.id);
+            }).catch(this.logger.error.bind(this.logger));
+          }
         },
       });
       all.data.arb_v1.forEach(rawArb => {
         this.persistedArbPaths[rawArb.id] = parseRawArbV1Number(rawArb);
       });
     });
+    pricesObs?.subscribe(prices => {
+      this.uploadPrices(prices).then(result => {
+        const gqlError = this.getGQLErrors(result);
+        if (gqlError) {
+          throw new Error(JSON.stringify({
+            type: 'gqlPrices',
+            error: gqlError
+          }))
+        }
+      }).catch(this.logger.error.bind(this.logger))
+    })
+    this.arbMonitor.subscribeHeights().subscribe((data) => {
+      this.uploadHeights([{dex: data.dex.name, height: data.height}]).then(result => {
+        const gqlError = this.getGQLErrors(result);
+        if (gqlError) {
+          throw new Error(JSON.stringify({
+            type: 'gqlHeights',
+            error: gqlError
+          }))
+        }
+        console.log(data.dex.name, data.height);
+      }).catch(this.logger.error.bind(this.logger))
+    })
   }
 
   async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1<number> }[] }> {
@@ -106,7 +110,7 @@ export default class ArbMonitorUploader {
           dex_0, dex_1,
           token_0, token_1,
           route_0, route_1,
-          ts, last_ts, reverse_id
+          ts, last_ts, reverse_id,height_0,height_1
         ]
     })
     {
@@ -117,8 +121,12 @@ export default class ArbMonitorUploader {
       objects: _.uniqBy(arbs, a => a.id),
     });
 
-    if (result.errors) {
-      throw new Error(JSON.stringify({ arbs: _.map(arbs, arb => [arb.id, arb.reverse_id]), error: _.pick(result.errors[0].extensions, ['code', 'internal.error.hint','path'])}))
+    const gqlErrors = this.getGQLErrors(result);
+    if (gqlErrors) {
+      throw new Error(JSON.stringify({
+        arbs: _.map(arbs, arb => [arb.id, arb.reverse_id]),
+        error: gqlErrors
+      }))
     }
     return {
       rows: result.data.insert_arb_v1,
@@ -129,12 +137,21 @@ export default class ArbMonitorUploader {
     };
   }
 
-  // noinspection JSUnusedGlobalSymbols -- NOT TESTED
+  private getGQLErrors(result) {
+    if (result.errors) {
+      return {
+        ..._.pick(result.errors[0].extensions, ['code', 'internal.error.hint', 'path']),
+        message: result.errors[0].message.sub(0, 100)
+      };
+    }
+  }
+
+// noinspection JSUnusedGlobalSymbols -- NOT TESTED
   async uploadArbPath(arb: ArbV1<number>): Promise<{ updateArb: { id: string, ts: string } }> {
     throw new Error('Not tested');
     // noinspection UnreachableCodeJS
     const result = await execute(`
-mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp! = "", $amount_bridge: float8 = "$amount_bridge", $amount_in: float8 = "", $amount_out: float8 = "", $dex_0: String = "", $bridge: jsonb = "", $dex_1: String = "", $route_1: jsonb = "", $route_0: jsonb = "", $token_0: String = "", $token_1: String = "") {
+mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp! = "", $amount_bridge: float8 = "$amount_bridge", $amount_in: float8 = "", $amount_out: float8 = "", $dex_0: String = "", $bridge: jsonb = "", $dex_1: String = "", $route_1: jsonb = "", $route_0: jsonb = "", $token_0: String = "", $token_1: String = "", $height_0: Int, $height_1: Int) {
   insert_arb_v1_one(
     object: {
       amount_bridge: $amount_bridge,
@@ -150,7 +167,9 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
       route_1: $route_1,
       token_1: $token_1,
       ts: $ts
-       reverse_id: $reverse_id
+      reverse_id: $reverse_id
+      height_0: $height_0
+      height_1: $height_1
     },
     on_conflict: {
       constraint: arb_v1_pkey,
@@ -168,7 +187,9 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
         route_1,
         token_1,
         ts,
-        reverse_id
+        reverse_id,
+        height_0
+        height_1
       ]
     }) {
       ts
@@ -190,6 +211,8 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
       route_1: any
       token_1: any,
       reverse_id: any
+      height_0: any,
+      height_1: any
     });
     if (result.errors) {
       throw new Error(JSON.stringify(result.errors));
@@ -230,6 +253,36 @@ mutation updateManyArbTs($arbIds: [String!]! = "", $ts: timestamp! = "") {
 
   private nextTs() {
     this.ts = new Date();
+  }
+
+  private async uploadHeights(data: { dex: string, height: number }[]) {
+    return execute(`
+mutation updateHeights($objects: [heights_insert_input!]! = {}) {
+  insert_heights(objects: $objects, on_conflict: {constraint: heights_pkey, update_columns: height}) {
+    affected_rows
+  }
+}
+`, {
+      objects: data
+    })
+  }
+
+  private async uploadPrices(prices: Prices) {
+    return execute(`
+mutation updatePrices($object: prices_insert_input = {}) {
+  insert_prices_one(object: $object, on_conflict: {constraint: prices_pkey, update_columns: prices}) {
+    prices
+    updated_at
+    id
+    created_at
+  }
+}
+    `, {
+      object: {
+        id: 1,
+        prices
+      }
+    })
   }
 }
 

@@ -74,3 +74,4 @@ export default function calculateTokenSwap<T extends DexProtocolName>(
       throw new Error(`Unsupported dex: ${dex} to calculate token swap ${amount.toString()} ${swapTokenSent} -> x ${swapTokenReceived}`)
   }
 }
+export {DexProtocol} from "../dex/types/dex-protocol";
