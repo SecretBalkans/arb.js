@@ -29,7 +29,8 @@ export type SourceChainTokenConfig = {
    */
   nativeWrapEquivalent?: {
     /** Used as key for Axelar JS-SDK/APIs, only when *transfering TO* Osmosis (depositing).
-     * See (unofficial): https://github.com/axelarnetwork/axelarjs-sdk/blob/302cb4673e0293b707d3401ad141be5e9cec2bbf/src/libs/types/index.ts#L122 */
+     * See (unofficial): https://github.com/axelarnetwork/axelarjs-sdk/blob/302cb4673e0293b707d3401ad141be5e9cec2bbf/src/libs/types/index.ts#L122
+     */
     tokenMinDenom: string;
     /** Wrap denom (e.g. WETH), since it's assumed we're labeling Osmosis balance as native. */
     wrapDenom: string;
