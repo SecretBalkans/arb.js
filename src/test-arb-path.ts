@@ -42,7 +42,7 @@ let logger;
   ipc.config.logInColor = false; // default
   ipc.config.logDepth = 1; // default
 
-  const processIndex = cluster.isMaster ? 0 : cluster.worker.id + 1;
+  const processIndex = cluster.isMaster ? 1 : cluster.worker.id + 1;
   console.log(`Worker: ${processIndex}`);
   const pairs = await execute(`query getArbPairs {
     arb_pairs(where:{ version:{_eq: 1}}) {
@@ -53,7 +53,7 @@ let logger;
   `)
   const allPairs = (pairs.data.arb_pairs[0].arb_pairs as [string, string][]).map<ArbPair>(([t0, t1]) => ([SwapToken[t0], SwapToken[t1]]));
   const processPairs = _.filter(allPairs, ($, index) => index % config.maxProcessCount === processIndex - 1);
-  console.log('Will use pairs', processPairs);
+  console.log(`Will calculate pairs ${processPairs.length}/${allPairs.length}`);
 
   if (cluster.isMaster) {
     logger = new Logger('MasterArb');
