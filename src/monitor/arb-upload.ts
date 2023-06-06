@@ -1,6 +1,7 @@
 import {
-  ArbitrageMonitor,
-  ArbPath, DexHeightSubscription,
+  ArbitrageMonitorCalculator,
+  ArbitrageMonitorMaster,
+  ArbPath, DexHeightSubscription, SerializedDexProtocolsUpdate,
 } from '../arbitrage/dexArbitrage';
 import {DexProtocolName} from '../dex/types/dex-types';
 import * as https from 'http';
@@ -12,6 +13,7 @@ import {ArbPathParsed} from '../arbitrage/types';
 import {ArbV1, ArbV1Raw, parseRawArbV1Number, toRawArbV1} from './types';
 import {Observable} from "rxjs";
 import {Prices} from "../prices/prices";
+import cluster from "cluster";
 
 
 export default class ArbMonitorUploader {
@@ -20,8 +22,15 @@ export default class ArbMonitorUploader {
   ts: Date;
   private readonly logger: Logger;
 
-  constructor(private readonly arbMonitor: ArbitrageMonitor, pricesObs?: Observable<Prices>) {
-    this.logger = new Logger('ArbUpload');
+  constructor(private readonly subscribes: {
+    arbs: {
+      obs: Observable<{ pair: string; d: SerializedDexProtocolsUpdate }>
+      calculator: ArbitrageMonitorCalculator,
+    },
+    heightsObs?: Observable<DexHeightSubscription>,
+    pricesObs?: Observable<Prices>
+  }) {
+    this.logger = new Logger(`ArbUpload#${cluster.worker?.id || 'Master'}`);
     execute(`query getAllArbs {
       arb_v1 {
         amount_bridge
@@ -43,7 +52,9 @@ export default class ArbMonitorUploader {
       }
     }
   `).then(all => {
-      this.arbMonitor.subscribeArbs().subscribe({
+      this.subscribes.arbs.calculator.enableCalculation(
+        this.subscribes.arbs?.obs
+      ).subscribe({
         next: (arbPath) => {
           this.nextTs();
           const json = arbPath.toJSON();
@@ -74,7 +85,7 @@ export default class ArbMonitorUploader {
         this.persistedArbPaths[rawArb.id] = parseRawArbV1Number(rawArb);
       });
     });
-    pricesObs?.subscribe(prices => {
+    subscribes.pricesObs?.subscribe(prices => {
       this.uploadPrices(prices).then(result => {
         const gqlError = this.getGQLErrors(result);
         if (gqlError) {
@@ -85,7 +96,7 @@ export default class ArbMonitorUploader {
         }
       }).catch(this.logger.error.bind(this.logger))
     })
-    this.arbMonitor.subscribeHeights().subscribe((data) => {
+    subscribes.heightsObs?.subscribe((data) => {
       this.uploadHeights([{dex: data.dex.name, height: data.height}]).then(result => {
         const gqlError = this.getGQLErrors(result);
         if (gqlError) {

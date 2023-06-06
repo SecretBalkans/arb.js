@@ -1,105 +1,114 @@
-import {ArbitrageMonitor, ArbPair, DexStore} from './arbitrage/dexArbitrage';
+import {
+  ArbitrageMonitorCalculator,
+  ArbitrageMonitorMaster,
+  ArbPair, ArbPairSerializedUpdate,
+  DexStore,
+  SerializedDexProtocolsUpdate
+} from './arbitrage/dexArbitrage';
 import {SwapToken} from './dex/types/dex-types';
 import OsmosisSwap from './dex/osmosis/osmosisSwap';
 import ShadeSwap from './dex/shade/shadeSwap';
-import ArbMonitorUploader from './monitor/arb-upload';
+import ArbMonitorUploader, {execute} from './monitor/arb-upload';
 import {subscribePrices} from "./prices/prices";
-import { tap } from "rxjs/operators";
+import _ from "lodash";
+import config from './config';
+import cluster from "cluster";
+import ipc from 'node-ipc';
+import {Logger} from "./utils";
+import {Observable, Subject} from "rxjs";
+
+if (config.maxProcessCount > 1 && cluster.isMaster) {
+  for (let i = 1; i < config.maxProcessCount; i++) {
+    cluster.fork()
+  }
+}
+if (cluster.isMaster) {
+  console.log(_.pick(config, ['maxProcessCount']));
+}
+const dexProtocols = [
+  new OsmosisSwap('https://osmosis-rpc.polkachu.com',
+    'https://api-osmosis-ia.cosmosia.notional.ventures',
+    10000),
+  new ShadeSwap('https://rpc-secret.whispernode.com:443',
+    !!1)
+];
+const dexStore = new DexStore(dexProtocols);
+let logger;
 (async () => {
-  const dexStore = new DexStore([
-      new OsmosisSwap('https://osmosis-rpc.polkachu.com',
-        'https://api-osmosis-ia.cosmosia.notional.ventures',
-        10000),
-      new ShadeSwap('https://rpc-secret.whispernode.com:443',
-        !!1)
-    ]
-  );
-  const pairs: ArbPair[] = [
-    [SwapToken.SCRT, SwapToken.USDC],
-    [SwapToken.SCRT, SwapToken.OSMO],
-    [SwapToken.SCRT, SwapToken.ATOM],
-    [SwapToken.SCRT, SwapToken.BLD],
-    [SwapToken.SCRT, SwapToken.IST],
-    [SwapToken.SCRT, SwapToken.CMST],
-    [SwapToken.SCRT, SwapToken.CMST],
-    [SwapToken.SCRT, SwapToken.stOSMO],
-    [SwapToken.SCRT, SwapToken.qATOM],
-    [SwapToken.SCRT, SwapToken.INJ],
-    [SwapToken.CMST, SwapToken.IST],
-    [SwapToken.BLD, SwapToken.USDC],
-    [SwapToken.USDT, SwapToken.USDC],
-    [SwapToken.ATOM, SwapToken.USDC],
-    [SwapToken.ATOM, SwapToken.stkATOM],
-    [SwapToken.ATOM, SwapToken.OSMO],
-    [SwapToken.ATOM, SwapToken.qATOM],
-    [SwapToken.stATOM, SwapToken.stOSMO],
-    [SwapToken.stOSMO, SwapToken.USDC],
-    [SwapToken.stATOM, SwapToken.ATOM],
-    [SwapToken.stOSMO, SwapToken.OSMO],
-    [SwapToken.stJUNO, SwapToken.JUNO],
-    [SwapToken.OSMO, SwapToken.USDC],
-    [SwapToken.INJ, SwapToken.USDC],
-    [SwapToken.INJ, SwapToken.stINJ],
-    [SwapToken.USDC, SwapToken.stkATOM],
-    [SwapToken.USDC, SwapToken.qATOM],
-    [SwapToken.USDC, SwapToken.WBTC],
-    [SwapToken.USDC, SwapToken.WETH],
-    [SwapToken.SCRT, SwapToken.WBTC],
-    [SwapToken.SCRT, SwapToken.WETH],
-    [SwapToken.WETH, SwapToken.WBTC],
-  ];
-  const arbitrage = new ArbitrageMonitor(dexStore, pairs);
 
-  // arbitrage.subscribeArbs().subscribe({
-  //   next(arbPaths) {
-  //     logger.log(_.sortBy(arbPaths, 'winPercentage').reverse().map(ap=> ap?.toString()));
-  //   },
-  // });
+  ipc.config.appspace = 'arbjs';
 
-  const arbUploader = new ArbMonitorUploader(arbitrage, await subscribePrices())
-  /*
-  while (true) {
-    console.time('cycle');
-    // Always called to initialize the Shade protocol local store
-    await Promise.all([
-      getPegPrice(),
-      getShadePairs(),
-      getOsmoPools(),
-    ]);
+  ipc.config.silent = true;
+  ipc.config.logInColor = false; // default
+  ipc.config.logDepth = 1; // default
 
-    // // This is how we use the basic function for swapping
-    const endingToken = getShadeTokenBySymbol('USDC.axl');
-    const startingToken = getShadeTokenBySymbol('SCRT');
-    const startingAmount = 1000;
-    const tokenInOsmoDecimals = 6;
-    const tokenOutOsmoDecimals = 6;
-    // USDC on Osmosis
-    const tokenInDenomOsmo = makeIBCMinimalDenom('channel-208', 'uusdc');
-    // SCRT on Osmosis
-    const tokenOutDenomOsmo = makeIBCMinimalDenom('channel-88', 'uscrt');
-    const [shadeRoute] = calculateBestShadeSwapRoutes({
-      inputTokenAmount: BigNumber(startingAmount * (10 ** startingToken.decimals)),
-      startingTokenId: startingToken.id,
-      endingTokenId: endingToken.id,
-      isReverse: false,
-      maxHops: 6,
-    });
-    const [osmo] = calculateBestOsmosisSwapRoute({
-      tokenInAmount: shadeRoute.quoteOutputAmount.dividedBy(10 ** endingToken.decimals).multipliedBy(10 ** tokenInOsmoDecimals),
-      tokenOutDenom: tokenOutDenomOsmo,
-      tokenInDenom: tokenInDenomOsmo,
-    });
+  const processIndex = cluster.isMaster ? 0 : cluster.worker.id + 1;
+  console.log(`Worker: ${processIndex}`);
+  const pairs = await execute(`query getArbPairs {
+    arb_pairs(where:{ version:{_eq: 1}}) {
+      arb_pairs
+      updated_at
+    }
+  }
+  `)
+  const allPairs = (pairs.data.arb_pairs[0].arb_pairs as [string, string][]).map<ArbPair>(([t0, t1]) => ([SwapToken[t0], SwapToken[t1]]));
+  const processPairs = _.filter(allPairs, ($, index) => index % config.maxProcessCount === processIndex - 1);
+  console.log('Will use pairs', processPairs);
 
-    console.log(convertCoinFromUDenomV2(shadeRoute.inputAmount.toString(), startingToken.decimals).toFixed(4), startingToken.symbol, '-> shade ->', convertCoinFromUDenomV2(shadeRoute.quoteOutputAmount.toString(), endingToken.decimals).toFixed(4), endingToken.symbol);
-    console.log(convertCoinFromUDenomV2(shadeRoute.quoteOutputAmount.toString(), endingToken.decimals).toFixed(4), endingToken.symbol, '-> osmo ->', convertCoinFromUDenomV2(osmo.out.toString(), tokenOutOsmoDecimals).toString(), startingToken.symbol);
+  if (cluster.isMaster) {
+    logger = new Logger('MasterArb');
+    const arbitrageMonitor = new ArbitrageMonitorMaster(dexStore, allPairs);
 
+    const obs = arbitrageMonitor.subscribeArbs();
+    const masterUploader = new ArbMonitorUploader({
+      arbs: {
+        obs: obs.asObservable(),
+        calculator: new ArbitrageMonitorCalculator(dexProtocols, processPairs)
+      },
+      heightsObs: arbitrageMonitor.subscribeHeights(),
+      pricesObs: await subscribePrices()
+    })
+    ipc.config.id = 'ArbMaster';
+    ipc.config.retry = 1000;
+    obs.subscribe((d) => {
+      ipc.server.broadcast('arbDexUpdate', d);
+    })
+    ipc.serve(
+      () => {
+        ipc.server.on(
+          'online',
+          id => {
+            logger.log('Connection from', id);
+          },
+        );
+      },
+    );
+    ipc.server.start();
+  } else {
+    const workerId = cluster.worker.id;
+    logger = new Logger(`Worker${workerId}`);
+    ipc.config.id = `Worker${workerId}`;
+    ipc.config.retry = 1000;
+    logger.log(`Started. Will connect to aster.`);
+    const arbObs = new Subject<ArbPairSerializedUpdate>();
+    ipc.connectTo(
+      'ArbMaster',
+      () => {
+        ipc.of.ArbMaster.on(
+          'arbDexUpdate',
+          (data: ArbPairSerializedUpdate) => {
+            arbObs.next(data);
+          },
+        );
+        ipc.of.ArbMaster.emit('online', workerId);
+      },
+    );
 
-    // finally show how long it takes to load the current cycle.
-    // In general it should be faster than a single block-time
-    console.timeEnd('cycle');
-    console.log('----------------------------');
-
-    // basic cycle logic for re-entry of testing
-    await new Promise(resolve => setTimeout(resolve, 5000));
-  }*/
+    const arbUploader = new ArbMonitorUploader({
+      arbs: {
+        obs: arbObs.asObservable(),
+        calculator: new ArbitrageMonitorCalculator(dexProtocols, processPairs)
+      },
+    })
+  }
 })();
