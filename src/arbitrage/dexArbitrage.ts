@@ -247,13 +247,11 @@ export class ArbCalculator {
 
   public enableCalculation(obs: ArbCalculatorObs): Observable<ArbPath<DexProtocolName, DexProtocolName, any>> {
     const q: Record<string, DexProtocolUpdateLight> = {};
-
-
-    obs.light?.pairs.pipe(filter(d => !!_.find(d.pair))).subscribe((update) => {
+    obs.light?.pairs.pipe(filter(d => !!_.find(this.pairs, (p) => p.join('-') === d.pair))).subscribe((update) => {
       q[update.pair] = update.d;
     });
     obs.light?.dexUpdates.subscribe(this.fullDexUpdate.bind(this));
-    obs.full?.pipe(filter(d => !!_.find(d.pair))).subscribe((update) => {
+    obs.full?.pipe(filter(d => !!_.find(this.pairs, (p) => p.join('-') === d.pair))).subscribe((update) => {
       q[update.pair] = update.d.map(full => _.pick(full, ['dexName', 'height']));
       this.fullDexUpdate(update.d);
     });

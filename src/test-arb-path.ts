@@ -83,7 +83,10 @@ let logger;
         ipc.server.broadcast('dexProtocolsUpdateTopic', d.d)
       }
       // noinspection TypeScriptValidateJSTypes
-      ipc.server.broadcast('arbPairUpdateTopic', d.pair);
+      ipc.server.broadcast('arbPairUpdateTopic', {
+        pair: d.pair,
+        d: d.d
+      } as ArbPairUpdateLight);
     })
     ipc.serve(
       () => {
