@@ -15,7 +15,7 @@ import config from './config';
 import cluster from "cluster";
 import ipc from 'node-ipc';
 import {Logger} from "./utils";
-import {Observable, Subject} from "rxjs";
+import {Subject} from "rxjs";
 
 if (config.maxProcessCount > 1 && cluster.isMaster) {
   for (let i = 1; i < config.maxProcessCount; i++) {
@@ -43,7 +43,7 @@ let logger;
   ipc.config.logDepth = 1; // default
 
   const processIndex = cluster.isMaster ? 1 : cluster.worker.id + 1;
-  console.log(`Worker: ${processIndex}`);
+  console.log(`Spawned worker: ${processIndex}`);
   const pairs = await execute(`query getArbPairs {
     arb_pairs(where:{ version:{_eq: 1}}) {
       arb_pairs
@@ -53,7 +53,6 @@ let logger;
   `)
   const allPairs = (pairs.data.arb_pairs[0].arb_pairs as [string, string][]).map<ArbPair>(([t0, t1]) => ([SwapToken[t0], SwapToken[t1]]));
   const processPairs = _.filter(allPairs, ($, index) => index % config.maxProcessCount === processIndex - 1);
-  console.log(`Will calculate pairs ${processPairs.length}/${allPairs.length}`);
 
   if (cluster.isMaster) {
     logger = new Logger('MasterArb');
@@ -111,4 +110,6 @@ let logger;
       },
     })
   }
+
+  logger.log(`Will calculate pairs ${processPairs.length}/${allPairs.length}`);
 })();
