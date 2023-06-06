@@ -26,11 +26,12 @@ if (cluster.isMaster) {
   console.log(_.pick(config, ['maxProcessCount']));
 }
 const dexProtocols = [
-  new OsmosisSwap('https://osmosis-rpc.polkachu.com',
-    'https://api-osmosis-ia.cosmosia.notional.ventures',
+  new OsmosisSwap(process.env.OSMO_RPC_ENDPOINT || 'https://osmosis-rpc.polkachu.com',
+    process.env.OSMO_REST_ENDPOJNT || 'https://osmosis-api.polkachu.com',
     10000),
-  new ShadeSwap('https://rpc-secret.whispernode.com:443',
-    !!1)
+  new ShadeSwap(process.env.SECRET_RPC_ENDPOJNT || 'https://rpc-secret.whispernode.com:443',
+    process.env.SECRET_USE_ONLY_SHADE_API ?
+      JSON.parse(process.env.SECRET_USE_ONLY_SHADE_API) : !!1)
 ];
 const dexStore = new DexStore(dexProtocols);
 let logger;
