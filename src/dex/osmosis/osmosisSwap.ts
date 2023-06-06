@@ -128,7 +128,7 @@ export default class OsmosisSwap extends CosmosDexProtocol<'osmosis'> {
             logger.debug(err.message);
           });
         }
-      }, observer.error.bind(observer));
+      }, logger.error.bind(logger));
     });
   }
 
