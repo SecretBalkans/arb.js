@@ -14,7 +14,7 @@ import {ShadeRoutePoolEssentialsIdMap} from "./shade-calc";
 import {
   getPairsRaw,
   getTokenPrices,
-  parseRawPool,
+  parseRawShadePool,
   ShadePair,
   TokenPairInfoRaw,
   tokens,
@@ -134,7 +134,7 @@ export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[], t0decimals?: num
     try {
       return {
         ...agg,
-        [n.id]: parseRawPool(n, t0decimals || getTokenDecimals(n.token_0), t1decimals || getTokenDecimals(n.token_1)),
+        [n.id]: parseRawShadePool(n, t0decimals || getTokenDecimals(n.token_0), t1decimals || getTokenDecimals(n.token_1)),
       };
     } catch (err) {
       logger.log(err.message);

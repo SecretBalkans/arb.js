@@ -156,7 +156,7 @@ export function getTokenDecimals(tokenId: string): number {
   return _.find(tokens, {id: tokenId}).decimals;
 }
 
-export function parseRawPool(n: TokenPairInfoRaw, t0decimals: number, t1decimals: number): ShadeRoutePoolEssential {
+export function parseRawShadePool(n: TokenPairInfoRaw, t0decimals: number, t1decimals: number): ShadeRoutePoolEssential {
   const vol = n.volume ? {
     volume: n.volume.volume,
     volume24HourChange: n.volume.volume_24h_change,

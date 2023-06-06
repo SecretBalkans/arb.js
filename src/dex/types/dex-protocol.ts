@@ -11,12 +11,45 @@ import {
   SwapToken,
   Token
 } from "./dex-types";
+import {Logger} from "../../utils";
 
 export abstract class DexProtocol<T extends DexProtocolName> implements ICanSwap<T>, ILivePoolStore<T> {
   name: DexProtocolName;
   pools: IPool<PoolInfo<T>>[];
 
+  rawPools: PoolInfo<T>[];
+  isFetchingPools: any;
+  protected abstract logger: Logger;
+
   abstract calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Route<T>): { route: Route<T>; amountOut: Amount } | null;
+  abstract fetchRawPools(): Promise<PoolInfo<T>[]>;
+
+  public subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<PoolInfo<T>> [], height: number }> {
+    return new Observable<{ pools: IPool<PoolInfo<T>>[], height: number }>(observer => {
+      this.subscribeToDexHeights().subscribe(({height: blockHeight}) => {
+        if (!this.isFetchingPools) {
+          this.isFetchingPools = true
+          const p = performance.now()
+          this.fetchRawPools()
+            .then(rawPools => {
+              this.updateRawPools(rawPools)
+              this.isFetchingPools = false;
+              this.logger.log(`${this.name}_pools`, performance.now() - p);
+              setImmediate(() => {
+                observer.next({
+                  pools: this.pools,
+                  height: blockHeight,
+                });
+              })
+            }).catch(err => {
+            this.logger.log(`${this.name}_pools`, performance.now() - p);
+            this.isFetchingPools = false;
+            this.logger.debug(err.message);
+          });
+        }
+      }, this.logger.error.bind(this.logger));
+    });
+  }
 
   calcSwap(amountIn: Amount, [tokenInId, tokenOutId]: [Token, Token], pools): { route?: Route<T>; amountOut?: Amount, internalSwapError: Error | null } {
     try {
@@ -36,7 +69,7 @@ export abstract class DexProtocol<T extends DexProtocolName> implements ICanSwap
     }
   }
 
-  abstract subscribeToPoolsUpdate(): Observable<{ pools: IPool<PoolInfo<T>>[]; height: number }>
+  abstract updateRawPools(rawPools: PoolInfo<T>[]);
 
   abstract subscribeToDexHeights(): Observable<{ height: number }>
 

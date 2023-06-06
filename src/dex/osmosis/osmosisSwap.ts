@@ -13,15 +13,11 @@ import {getTokenDenom, toTokenId} from './tokens';
 
 import {getOsmoPools} from './osmosis-rest';
 import {convertCoinFromUDenomV2, Logger} from '../../utils';
-import {Observable} from 'rxjs';
-import createCosmosObserver from '../utils/cosmosObserver';
 import {
   OptimizedRoutes,
   Pool,
   StablePool,
-  StablePoolRaw,
-  WeightedPool,
-  WeightedPoolRaw
+  WeightedPool
 } from '../../lib/@osmosis/packages/pools/src';
 import bigInteger from 'big-integer';
 import _ from 'lodash';
@@ -37,11 +33,12 @@ export default class OsmosisSwap extends CosmosDexProtocol<'osmosis'> {
   public name = 'osmosis' as DexProtocolName;
   public pools: IPool<Pool>[];
   calc: OsmosisCalc;
-  private rawPools: Pool[];
   blockRouter: OptimizedRoutes = null;
-  private isFetchingOsmoPools: boolean;
+  protected readonly logger: Logger;
+
   constructor(rpcEndpoint: string, public readonly restEndpoint: string, private readonly timeout, retryTime = 1000) {
     super(rpcEndpoint, retryTime);
+    this.logger = new Logger('OsmosisSwap');
   }
 
   public override calcSwapWithPools(amountIn: Amount, tokenInId: Token, tokenOutId: Token, poolsHint: Route<'osmosis'>): { route: Route<'osmosis'>; amountOut: Amount } | null {
@@ -59,7 +56,7 @@ export default class OsmosisSwap extends CosmosDexProtocol<'osmosis'> {
         }
       });
     } else {
-      const osmoPairPools = this.getOsmoPairPools(tokenInDenomOsmo, tokenOutDenomOsmo);
+      const osmoPairPools = this.initializeOsmoPairPools(tokenInDenomOsmo, tokenOutDenomOsmo);
       poolsToCalc = this.rawPools.filter(p => osmoPairPools.includes(p.id as PoolId))
     }
     const calc = new OsmosisCalc(poolsToCalc)
@@ -94,51 +91,33 @@ export default class OsmosisSwap extends CosmosDexProtocol<'osmosis'> {
     }
   }
 
-  public override subscribeToPoolsUpdate(retryTime = 500): Observable<{ pools: IPool<Pool> [], height: number }> {
-    return new Observable<{ pools: IPool<Pool>[], height: number }>(observer => {
-      this.subscribeToDexHeights().subscribe(({height:blockHeight}) => {
-        if (!this.isFetchingOsmoPools) {
-          this.isFetchingOsmoPools = true
-          const p = performance.now()
-          getOsmoPools(this.restEndpoint, this.timeout)
-            .then(osmoPools => {
-              this.blockRouter = null;
-              const latestOsmoPools = osmoPools.map(op => ({
-                poolId: op.id as PoolId,
-                dex: 'osmosis' as DexProtocolName,
-                token0Id: toTokenId(op.poolAssets[0].denom as Denom, op.id, 0),
-                token0Amount: BigNumber(op.poolAssets[0].amount.toString()),
-                token1Id: toTokenId(op.poolAssets[1].denom as Denom, op.id, 1),
-                token1Amount: BigNumber(op.poolAssets[1].amount.toString()),
-                internalPool: op,
-              }));
-              this.rawPools = osmoPools;
-              this.pools = latestOsmoPools;
-              this.isFetchingOsmoPools = false;
-              console.log('OsmoPools', performance.now() - p);
-              setImmediate(() => {
-                observer.next({
-                  pools: latestOsmoPools,
-                  height: blockHeight,
-                });
-              })
-            }).catch(err => {
-            console.log('OsmoPools', performance.now() - p);
-            this.isFetchingOsmoPools = false;
-            logger.debug(err.message);
-          });
-        }
-      }, logger.error.bind(logger));
-    });
+  public override updateRawPools(rawPools: Pool[]) {
+    try {
+      this.blockRouter = null;
+      const latestOsmoPools = rawPools.map(op => ({
+        poolId: op.id as PoolId,
+        dex: 'osmosis' as DexProtocolName,
+        token0Id: toTokenId(op.poolAssets[0].denom as Denom, op.id, 0),
+        token0Amount: BigNumber(op.poolAssets[0].amount.toString()),
+        token1Id: toTokenId(op.poolAssets[1].denom as Denom, op.id, 1),
+        token1Amount: BigNumber(op.poolAssets[1].amount.toString()),
+        internalPool: op,
+      }));
+      this.rawPools = rawPools;
+      this.pools = latestOsmoPools;
+    } catch (err) {
+      throw err;
+    }
   }
 
-  private getOsmoPairPools(tokenInDenom: string, tokenOutDenom: string): PoolId[] {
+  private initializeOsmoPairPools(tokenInDenom: string, tokenOutDenom: string): PoolId[] {
     const pairKey = OsmosisCalc.getPairKey(tokenInDenom, tokenOutDenom);
     if (!pairPools[pairKey]) {
       this.blockRouter = this.blockRouter || new OptimizedRoutes(this.rawPools, incentivizedPoolIds, 'uosmo');
-      pairPools[pairKey] = [...this.blockRouter.getCandidateRoutes(tokenInDenom, tokenOutDenom, 4, 3),
+      const flatMap = [...this.blockRouter.getCandidateRoutes(tokenInDenom, tokenOutDenom, 4, 3),
         ...this.blockRouter.getCandidateRoutes(tokenOutDenom, tokenInDenom, 4, 3)]
         .flatMap(d => d.pools.map(pool => pool.id as PoolId));
+      pairPools[pairKey] = flatMap;
     }
     return pairPools[pairKey];
   }
@@ -148,13 +127,17 @@ export default class OsmosisSwap extends CosmosDexProtocol<'osmosis'> {
       try {
         const {denom: tokenInDenomOsmo} = getTokenDenom(SwapTokenMap[token1]);
         const {denom: tokenOutDenomOsmo} = getTokenDenom(SwapTokenMap[token2]);
-        return this.getOsmoPairPools(tokenInDenomOsmo, tokenOutDenomOsmo);
+        return this.initializeOsmoPairPools(tokenInDenomOsmo, tokenOutDenomOsmo);
       } catch (err) {
         logger.debugOnce(err.message);
         return [];
       }
     });
     return _.union(arrays);
+  }
+
+  async fetchRawPools(): Promise<Pool[]> {
+    return getOsmoPools(this.restEndpoint, this.timeout)
   }
 }
 

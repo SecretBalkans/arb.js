@@ -16,6 +16,7 @@ import cluster from "cluster";
 import ipc from 'node-ipc';
 import {Logger} from "./utils";
 import {Subject} from "rxjs";
+import {getPairsRaw, initShadeTokens} from "./dex/shade/shade-api-utils";
 
 if (config.maxProcessCount > 1 && cluster.isMaster) {
   for (let i = 1; i < config.maxProcessCount; i++) {
@@ -88,8 +89,12 @@ let logger;
     logger = new Logger(`Worker${processIndex}`);
     ipc.config.id = `Worker${processIndex}`;
     ipc.config.retry = 1000;
-    logger.log(`Started. Will connect to aster.`);
+    logger.log(`Started. Will connect to Master.`);
     const arbObs = new Subject<ArbPairSerializedUpdate>();
+    await Promise.all([
+      initShadeTokens(),
+      getPairsRaw(),
+    ])
     ipc.connectTo(
       'ArbMaster',
       () => {
@@ -102,7 +107,6 @@ let logger;
         ipc.of.ArbMaster.emit('online', processIndex);
       },
     );
-
     const arbUploader = new ArbMonitorUploader({
       arbs: {
         obs: arbObs.asObservable(),

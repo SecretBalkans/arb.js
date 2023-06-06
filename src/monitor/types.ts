@@ -13,7 +13,7 @@ import {
   ShadeRoutePoolEssential,
   ShadeTokenEssential
 } from "../dex/shade/types";
-import {parseRawPool, toRawShadePool} from "../dex/shade/shade-api-utils";
+import {parseRawShadePool, toRawShadePool} from "../dex/shade/shade-api-utils";
 import {DenomInfo, OsmosisRoute} from "../dex/osmosis/types";
 import {TokenPairInfoRaw} from "../dex/shade/shade-api-utils";
 
@@ -112,7 +112,7 @@ export function parseRoute<T extends DexProtocolName>(route: SerializedRoute<T>)
       return {
         t0: path.t0,
         t1: path.t1,
-        raw: parseRawPool(path.raw, path.t0.decimals, path.t1.decimals),
+        raw: parseRawShadePool(path.raw, path.t0.decimals, path.t1.decimals),
       }
     });
   }

@@ -14,13 +14,17 @@ import {
 
 import _ from 'lodash';
 import {combineLatest, merge, Observable, ObservedValueOf, Subject} from 'rxjs';
-import {filter, map, tap} from 'rxjs/operators';
+import {filter, map} from 'rxjs/operators';
 import {Logger} from '../utils';
 import BigNumber from 'bignumber.js';
 import {ArbPathParsed} from "./types";
 import {serializeRoute} from '../monitor/types';
 import {DexProtocol} from "../dex/types/dex-protocol";
 import Aigle from "aigle";
+import {ShadePair} from "../dex/shade/shade-api-utils";
+import {OsmosisPoolRaw} from "../dex/osmosis/types";
+import {isStablePool} from "../dex/osmosis/osmosis-calc";
+import {StablePool, WeightedPool} from "../lib/@osmosis/packages/pools/src";
 
 const logger = new Logger('ArbitrageInternal');
 
@@ -156,34 +160,40 @@ export class ArbitrageMonitorMaster {
     let d0poolMap: Record<PoolId, true>;
     let d1poolMap: Record<PoolId, true>;
     const subject = new Subject<ArbPairSerializedUpdate>();
-      this.store.subscribeDexProtocolsCombined().subscribe((dexProtocolUpdates => {
-        const dex0 = dexProtocolUpdates[0].dex;
-        const dex1 = dexProtocolUpdates[1].dex;
-        const isInitial = !d0poolMap || !d1poolMap;
-        if (!d0poolMap) {
-          const poolsMap = dex0.getPoolsMap(this.pairs);
-          d0poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
-        }
-        if (!d1poolMap) {
-          const poolsMap = dex1.getPoolsMap(this.pairs);
-          d1poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
-        }
-        const changedPairs = this.pairs.filter(pair => {
-          return isInitial || _.find(dexProtocolUpdates[0].pools, pool =>
-              d0poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
-            || _.find(dexProtocolUpdates[1].pools, pool =>
-              d1poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0);
-        });
-        changedPairs.forEach(arbPair => subject.next({
-          pair: arbPair.join('-'),
-          d: dexProtocolUpdates.map(up => ({
-            dexName: up.dex.name,
-            pools: up.pools,
-            height: up.height,
-          }))
-        }));
-        console.log('changed', changedPairs.length);
+    this.store.subscribeDexProtocolsCombined().subscribe((dexProtocolUpdates => {
+      const dex0 = dexProtocolUpdates[0].dex;
+      const dex1 = dexProtocolUpdates[1].dex;
+      const isInitial = !d0poolMap || !d1poolMap;
+      if (!d0poolMap) {
+        const poolsMap = dex0.getPoolsMap(this.pairs);
+        d0poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
+      }
+      if (!d1poolMap) {
+        const poolsMap = dex1.getPoolsMap(this.pairs);
+        d1poolMap = _.zipObject(poolsMap, _.times(poolsMap.length, _.constant(true))) as Record<PoolId, true>;
+      }
+      const changedPairs = this.pairs.filter(pair => {
+        return isInitial || _.find(dexProtocolUpdates[0].pools, pool =>
+            d0poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0)
+          || _.find(dexProtocolUpdates[1].pools, pool =>
+            d1poolMap[pool.poolId] && _.intersection([pool.token1Id, pool.token0Id], [SwapTokenMap[pair[0]], SwapTokenMap[pair[1]]]).length > 0);
+      });
+      changedPairs.forEach(arbPair => subject.next({
+        pair: arbPair.join('-'),
+        d: dexProtocolUpdates.map(up => ({
+          dexName: up.dex.name,
+          rawPools: up.dex.rawPools.map((rp) => {
+            if (isOsmosisPoolInfo(rp)) {
+              return rp.raw
+            } else {
+              return rp;
+            }
+          }),
+          height: up.height,
+        }))
       }));
+      console.log('changed', changedPairs.length);
+    }));
     return subject;
   }
 }
@@ -210,8 +220,32 @@ export class ArbitrageMonitorCalculator {
 
   public enableCalculation(qObs: Observable<ArbPairSerializedUpdate>): Observable<ArbPath<DexProtocolName, DexProtocolName, any>> {
     const q: Record<string, SerializedDexProtocolsUpdate> = {};
+
+    function parseRawPool(rawPools: RawPoolInfo<DexProtocolName>[]): (StablePool | WeightedPool | ShadePair)[] {
+      return rawPools.map(poolRaw => {
+        if (isOsmosisPoolRaw(poolRaw)) {
+          if (isStablePool(poolRaw)) {
+            return new StablePool(poolRaw);
+          } else {
+            return new WeightedPool(poolRaw);
+          }
+        } else {
+          return poolRaw;
+        }
+      })
+    }
+
     qObs.pipe(filter(d => !!_.find(d.pair))).subscribe(({pair, d}) => {
       q[pair] = d
+      const rawPools0 = parseRawPool(d[0].rawPools);
+      const rawPools1 = parseRawPool(d[1].rawPools);
+      if (this.dexProtocols[0].name === d[0].dexName) {
+        this.dexProtocols[0].updateRawPools(rawPools0);
+        this.dexProtocols[1].updateRawPools(rawPools1);
+      } else {
+        this.dexProtocols[0].updateRawPools(rawPools1);
+        this.dexProtocols[1].updateRawPools(rawPools0);
+      }
     });
     return new Observable<ArbPath<DexProtocolName, DexProtocolName, any>>((emitter) => {
       Aigle.doWhilst(async () => {
@@ -221,8 +255,8 @@ export class ArbitrageMonitorCalculator {
           if (qData) {
             delete q[pairKey];
             const changedPair = pairToCalculate;
-            const dex0 = _.find(this.dexProtocols, { name: qData[0].dexName});
-            const dex1 = _.find(this.dexProtocols, { name: qData[1].dexName});
+            const dex0 = _.find(this.dexProtocols, {name: qData[0].dexName});
+            const dex1 = _.find(this.dexProtocols, {name: qData[1].dexName});
             const height0 = qData[0].height;
             const height1 = qData[1].height;
             const baseAmount = this.getCachedCapacity({pair: changedPair, dex0, dex1});
@@ -376,10 +410,19 @@ export class ArbitrageMonitorCalculator {
 type DexPoolsSubscription = { dex: DexProtocol<DexProtocolName>, pools: IPool<PoolInfo<DexProtocolName>>[], height: number };
 
 export type DexHeightSubscription = { dex: DexProtocol<DexProtocolName>, height: number };
-export type ArbPairSerializedUpdate = { pair: string; d: SerializedDexProtocolsUpdate };
+export type ArbPairSerializedUpdate = { pair: string, d: SerializedDexProtocolsUpdate };
 
 type DexProtocolsUpdate = { dex: DexProtocol<DexProtocolName>, pools: IPool<PoolInfo<DexProtocolName>>[]; height: number };
-export type SerializedDexProtocolsUpdate = { dexName: DexProtocolName, pools: IPool<PoolInfo<DexProtocolName>>[]; height: number }[];
+type RawPoolInfo<T extends DexProtocolName> = T extends 'osmosis' ? OsmosisPoolRaw : ShadePair;
+export type SerializedDexProtocolsUpdate = { dexName: DexProtocolName, rawPools: RawPoolInfo<DexProtocolName>[]; height: number }[];
+
+function isOsmosisPoolRaw(rawPoolInfo: RawPoolInfo<DexProtocolName>): rawPoolInfo is OsmosisPoolRaw {
+  return !!(rawPoolInfo as OsmosisPoolRaw)["@type"];
+}
+
+function isOsmosisPoolInfo(poolInfo: PoolInfo<DexProtocolName>): poolInfo is PoolInfo<'osmosis'> {
+  return !!(poolInfo as PoolInfo<'osmosis'>).raw;
+}
 
 export class DexStore {
   public readonly dexSubscriptions: Partial<Record<DexProtocolName, Observable<DexPoolsSubscription>>> = {};
