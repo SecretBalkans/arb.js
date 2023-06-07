@@ -122,6 +122,8 @@ export default class ArbMonitorUploader {
   async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1<number> }[] }> {
     this.buffer.push(...arbs);
     if (this.buffer.length >= this.bufferLength) {
+      const arbV1Raws = this.buffer;
+      this.buffer = [];
       const result = await execute(
         `
   mutation upsertManyArbs ($objects: [arb_v1_insert_input!]!) {
@@ -141,9 +143,8 @@ export default class ArbMonitorUploader {
     }
   }
   `, {
-          objects: _.uniqBy(this.buffer, a => a.id),
+          objects: _.uniqBy(arbV1Raws, a => a.id),
         });
-
       const gqlErrors = this.getGQLErrors(result);
       if (gqlErrors) {
         throw new Error(JSON.stringify({
