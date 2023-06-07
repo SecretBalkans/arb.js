@@ -130,7 +130,6 @@ let logger;
         ipc.of.ArbMaster.on(
           'ArbPairUpdateLight',
           (data: ArbPairUpdateLight) => {
-            logger.log('Received pairs...')
             pairsObs.next(data);
           },
         );
