@@ -32,7 +32,8 @@ const dexProtocols = [
     10000),
   new ShadeSwap(process.env.SECRET_RPC_ENDPOJNT || 'https://secretnetwork-rpc.lavenderfive.com:443',
     process.env.SECRET_USE_ONLY_SHADE_API ?
-      JSON.parse(process.env.SECRET_USE_ONLY_SHADE_API) : !!1)
+      JSON.parse(process.env.SECRET_USE_ONLY_SHADE_API) : !!1,
+    process.env.SECRET_BLOCK_RETRY_TIME ? +JSON.parse(process.env.SECRET_BLOCK_RETRY_TIME) : 2000)
 ];
 const dexStore = new DexStore(dexProtocols);
 let logger;
@@ -75,7 +76,7 @@ let logger;
     ipc.config.retry = 1000;
     const lastUpdates: Partial<Record<DexProtocolName, number>> = {};
     obs.subscribe((d) => {
-      if(_.some(d.d, (update) => {
+      if (_.some(d.d, (update) => {
         return lastUpdates[update.dexName] !== update.height;
       })) {
         d.d.forEach((update) => lastUpdates[update.dexName] = update.height)

@@ -36,7 +36,7 @@ export default class ArbMonitorUploader {
     },
     heightsObs?: Observable<DexHeightSubscription>,
     pricesObs?: Observable<Prices>
-  }, private readonly bufferLength: number) {
+  }, private readonly maxBufferLenght: number) {
     this.logger = new Logger(`ArbUpload#${cluster.worker?.id || 'Master'}`);
     execute(`query getAllArbs {
       arb_v1 {
@@ -75,12 +75,14 @@ export default class ArbMonitorUploader {
             || !_.isEqual(json.route1, persistedArbPath.route1)) {
             // There is a change in the arb
             const arbV1 = this.arbPathToV1(arbPath);
-            this.uploadManyArbs([toRawArbV1(arbV1)]).then((res) => {
-              this.persistedArbPaths[arbV1.id] = arbV1;
-              if (res) {
-                this.logger.log('Updated', res.updateManyArbs);
-              }
-            }).catch(this.logger.error.bind(this.logger));
+            setImmediate(()=> {
+              this.uploadManyArbs([toRawArbV1(arbV1)]).then((res) => {
+                this.persistedArbPaths[arbV1.id] = arbV1;
+                if (res) {
+                  this.logger.log('Updated', res.updateManyArbs);
+                }
+              }).catch(this.logger.error.bind(this.logger));
+            })
           } else {
             this.updateManyArbTs([arbPath.id], this.ts).then((res) => {
               this.logger.log('TS', arbPath.id);
@@ -121,7 +123,7 @@ export default class ArbMonitorUploader {
 
   async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: number}> {
     this.buffer.push(...arbs);
-    if (this.buffer.length >= this.bufferLength) {
+    if (this.buffer.length >= this.maxBufferLenght) {
       const arbV1Raws = this.buffer;
       this.buffer = [];
       const result = await execute(
