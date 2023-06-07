@@ -277,8 +277,6 @@ export class ArbCalculator {
               [reverseBaseAmount, reverseChangedPair, dex1, dex0, height1, height0],
             ];
             await Aigle.forEach(pathArgs, async (args: [Amount, ArbPair, DexProtocol<DexProtocolName>, DexProtocol<DexProtocolName>, number, number]) => {
-              const label = args[1].join('-');
-              console.time(label)
               const arbPath = this.calcDexArbOut(...args);
               if (arbPath.amountOut?.isGreaterThan(arbPath.amountIn)) {
                 const capacityUntilBalance = this.calculateCapacityUntilBalance(arbPath);
@@ -292,7 +290,6 @@ export class ArbCalculator {
                 this.setCurrentCapacity(defaultCapacity);
                 emitter.next(arbPath)
               }
-              console.timeEnd(label)
               await new Promise(resolve => setImmediate(resolve));
             })
           }

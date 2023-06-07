@@ -89,6 +89,7 @@ let logger;
         return lastUpdates[update.dexName] !== update.height;
       })) {
         d.d.forEach((update) => lastUpdates[update.dexName] = update.height)
+        console.log('Broadcasting update to workers...');
         // noinspection TypeScriptValidateJSTypes
         ipc.server.broadcast('dexProtocolsUpdateTopic', d.d)
       }
@@ -126,12 +127,14 @@ let logger;
         ipc.of.ArbMaster.on(
           'arbPairUpdateTopic',
           (data: ArbPairUpdateLight) => {
+            logger.log('Received full pairs...')
             pairsObs.next(data);
           },
         );
         ipc.of.ArbMaster.on(
           'dexProtocolsUpdateTopic',
           (data: DexProtocolsUpdateFull) => {
+            logger.log('Received full update...')
             dexObs.next(data);
           },
         );
