@@ -91,12 +91,15 @@ let logger;
         d.d.forEach((update) => lastUpdates[update.dexName] = update.height)
         console.log('Broadcasting update to workers...');
         // noinspection TypeScriptValidateJSTypes
-        ipc.server.broadcast('dexProtocolsUpdateTopic', d.d)
+        ipc.server.broadcast('DexProtocolsUpdateFull', d.d)
       }
       // noinspection TypeScriptValidateJSTypes
-      ipc.server.broadcast('arbPairUpdateTopic', {
+      ipc.server.broadcast('ArbPairUpdateLight', {
         pair: d.pair,
-        d: d.d
+        d: d.d.map(t => ({
+          height: t.height,
+          dexName: t.dexName
+        }))
       } as ArbPairUpdateLight);
     })
     ipc.serve(
@@ -125,14 +128,14 @@ let logger;
       'ArbMaster',
       () => {
         ipc.of.ArbMaster.on(
-          'arbPairUpdateTopic',
+          'ArbPairUpdateLight',
           (data: ArbPairUpdateLight) => {
-            logger.log('Received full pairs...')
+            logger.log('Received pairs...')
             pairsObs.next(data);
           },
         );
         ipc.of.ArbMaster.on(
-          'dexProtocolsUpdateTopic',
+          'DexProtocolsUpdateFull',
           (data: DexProtocolsUpdateFull) => {
             logger.log('Received full update...')
             dexObs.next(data);
