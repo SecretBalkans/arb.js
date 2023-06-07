@@ -20,7 +20,16 @@ import {getPairsRaw, initShadeTokens} from "./dex/shade/shade-api-utils";
 
 if (config.maxProcessCount > 1 && cluster.isMaster) {
   for (let i = 1; i < config.maxProcessCount; i++) {
-    cluster.fork()
+    let worker = cluster.fork()
+    console.log('Spawning bot process ...');
+    worker.on('error', (err) => {
+      logger.log(`Worker error`, err);
+    });
+    worker.on('exit', () => {
+      logger.log(`Worker died.`);
+      worker?.destroy();
+      worker = null;
+    });
   }
 }
 if (cluster.isMaster) {
@@ -30,7 +39,7 @@ const dexProtocols = [
   new OsmosisSwap(process.env.OSMO_RPC_ENDPOINT || 'https://rpc-osmosis.ecostake.com',
     process.env.OSMO_REST_ENDPOINT || 'https://osmosis.rest.stakin-nodes.com',
     10000),
-  new ShadeSwap(process.env.SECRET_RPC_ENDPOINT || 'https://secretnetwork-rpc.lavenderfive.com:443',
+  new ShadeSwap(process.env.SECRET_RPC_ENDPOINT || 'https://rpc.secret.express/',
     process.env.SECRET_USE_ONLY_SHADE_API ?
       JSON.parse(process.env.SECRET_USE_ONLY_SHADE_API) : !!1,
     process.env.SECRET_BLOCK_RETRY_TIME ? +JSON.parse(process.env.SECRET_BLOCK_RETRY_TIME) : 2000)
