@@ -70,7 +70,7 @@ let logger;
       },
       heightsObs: arbitrageMonitor.subscribeHeights(),
       pricesObs: await subscribePrices()
-    })
+    }, processPairs.length)
     ipc.config.id = 'ArbMaster';
     ipc.config.retry = 1000;
     const lastUpdates: Partial<Record<DexProtocolName, number>> = {};
@@ -138,7 +138,7 @@ let logger;
         },
         calculator: new ArbCalculator(dexProtocols, processPairs)
       },
-    })
+    }, processPairs.length)
   }
 
   logger.log(`Will calculate pairs ${processPairs.length}/${allPairs.length}`);

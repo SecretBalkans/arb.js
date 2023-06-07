@@ -36,7 +36,7 @@ export default class ArbMonitorUploader {
     },
     heightsObs?: Observable<DexHeightSubscription>,
     pricesObs?: Observable<Prices>
-  }) {
+  }, private readonly bufferLength: number) {
     this.logger = new Logger(`ArbUpload#${cluster.worker?.id || 'Master'}`);
     execute(`query getAllArbs {
       arb_v1 {
@@ -76,10 +76,10 @@ export default class ArbMonitorUploader {
             // There is a change in the arb
             const arbV1 = this.arbPathToV1(arbPath);
             this.uploadManyArbs([toRawArbV1(arbV1)]).then((res) => {
-              this.logger.log('Updated', res.updateManyArbs[0].id);
-              res.updateManyArbs.forEach(d => {
-                this.persistedArbPaths[d.id] = d.arb;
-              });
+              this.persistedArbPaths[arbV1.id] = arbV1;
+              if (res) {
+                this.logger.log('Updated', res.updateManyArbs.length);
+              }
             }).catch(this.logger.error.bind(this.logger));
           } else {
             this.updateManyArbTs([arbPath.id], this.ts).then((res) => {
@@ -117,8 +117,13 @@ export default class ArbMonitorUploader {
     })
   }
 
+  buffer: ArbV1Raw[] = [];
+
   async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1<number> }[] }> {
-    const result = await execute(`
+    this.buffer.push(...arbs);
+    if (this.buffer.length >= this.bufferLength) {
+      const result = await execute(
+        `
   mutation upsertManyArbs ($objects: [arb_v1_insert_input!]!) {
     insert_arb_v1(objects: $objects,
       on_conflict: {
@@ -136,23 +141,24 @@ export default class ArbMonitorUploader {
     }
   }
   `, {
-      objects: _.uniqBy(arbs, a => a.id),
-    });
+          objects: _.uniqBy(this.buffer, a => a.id),
+        });
 
-    const gqlErrors = this.getGQLErrors(result);
-    if (gqlErrors) {
-      throw new Error(JSON.stringify({
-        arbs: _.map(arbs, arb => [arb.id, arb.reverse_id]),
-        error: gqlErrors
-      }))
+      const gqlErrors = this.getGQLErrors(result);
+      if (gqlErrors) {
+        throw new Error(JSON.stringify({
+          arbs: _.map(arbs, arb => [arb.id, arb.reverse_id]),
+          error: gqlErrors
+        }))
+      }
+      return {
+        rows: result.data.insert_arb_v1,
+        updateManyArbs: arbs.map(arb => ({
+          arb: parseRawArbV1Number(arb),
+          id: arb.id,
+        })),
+      };
     }
-    return {
-      rows: result.data.insert_arb_v1,
-      updateManyArbs: arbs.map(arb => ({
-        arb: parseRawArbV1Number(arb),
-        id: arb.id,
-      })),
-    };
   }
 
   private getGQLErrors(result) {
