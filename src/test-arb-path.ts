@@ -27,8 +27,8 @@ if (cluster.isMaster) {
   console.log(_.pick(config, ['maxProcessCount']));
 }
 const dexProtocols = [
-  new OsmosisSwap(process.env.OSMO_RPC_ENDPOINT || 'https://osmosis-rpc.polkachu.com',
-    process.env.OSMO_REST_ENDPOINT || 'https://osmosis-api.polkachu.com',
+  new OsmosisSwap(process.env.OSMO_RPC_ENDPOINT || 'https://rpc-osmosis.ecostake.com',
+    process.env.OSMO_REST_ENDPOINT || 'https://osmosis.rest.stakin-nodes.com',
     10000),
   new ShadeSwap(process.env.SECRET_RPC_ENDPOINT || 'https://secretnetwork-rpc.lavenderfive.com:443',
     process.env.SECRET_USE_ONLY_SHADE_API ?

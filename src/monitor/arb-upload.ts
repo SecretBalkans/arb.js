@@ -85,7 +85,7 @@ export default class ArbMonitorUploader {
             })
           } else {
             this.updateManyArbTs([arbPath.id], this.ts).then((res) => {
-              this.logger.log('TS', arbPath.id);
+              this.logger.log('TS', res.updateManyTs);
             }).catch(this.logger.error.bind(this.logger));
           }
         },
@@ -246,7 +246,7 @@ mutation upsertArb($id: String! = "", $ts: timestamp! = "", $last_ts: timestamp!
     };
   }
 
-  async updateManyArbTs(arbIds: string[], ts: Date): Promise<{ updateManyTs: any }> {
+  async updateManyArbTs(arbIds: string[], ts: Date): Promise<{ updateManyTs: number }> {
     const result = await execute(`
 mutation updateManyArbTs($arbIds: [String!]! = "", $ts: timestamp! = "") {
   update_arb_v1_many(updates: {where: {id: {_in: $arbIds}}, _set: {ts: $ts}}) {
@@ -258,7 +258,7 @@ mutation updateManyArbTs($arbIds: [String!]! = "", $ts: timestamp! = "") {
       ts,
     });
     return {
-      updateManyTs: result.data.update_arb_v1_many,
+      updateManyTs: result.data.update_arb_v1_many.affected_rows,
     };
 
   }
