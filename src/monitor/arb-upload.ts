@@ -78,7 +78,7 @@ export default class ArbMonitorUploader {
             this.uploadManyArbs([toRawArbV1(arbV1)]).then((res) => {
               this.persistedArbPaths[arbV1.id] = arbV1;
               if (res) {
-                this.logger.log('Updated', res.updateManyArbs.length);
+                this.logger.log('Updated', res.updateManyArbs);
               }
             }).catch(this.logger.error.bind(this.logger));
           } else {
@@ -119,7 +119,7 @@ export default class ArbMonitorUploader {
 
   buffer: ArbV1Raw[] = [];
 
-  async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: { id: string, arb: ArbV1<number> }[] }> {
+  async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: number}> {
     this.buffer.push(...arbs);
     if (this.buffer.length >= this.bufferLength) {
       const arbV1Raws = this.buffer;
@@ -154,10 +154,7 @@ export default class ArbMonitorUploader {
       }
       return {
         rows: result.data.insert_arb_v1,
-        updateManyArbs: arbs.map(arb => ({
-          arb: parseRawArbV1Number(arb),
-          id: arb.id,
-        })),
+        updateManyArbs: result.data.insert_arb_v1.affected_rows
       };
     }
   }

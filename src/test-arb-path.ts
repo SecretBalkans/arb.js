@@ -30,7 +30,7 @@ const dexProtocols = [
   new OsmosisSwap(process.env.OSMO_RPC_ENDPOINT || 'https://osmosis-rpc.polkachu.com',
     process.env.OSMO_REST_ENDPOJNT || 'https://osmosis-api.polkachu.com',
     10000),
-  new ShadeSwap(process.env.SECRET_RPC_ENDPOJNT || 'https://rpc-secret.whispernode.com:443',
+  new ShadeSwap(process.env.SECRET_RPC_ENDPOJNT || 'https://secretnetwork-rpc.lavenderfive.com:443',
     process.env.SECRET_USE_ONLY_SHADE_API ?
       JSON.parse(process.env.SECRET_USE_ONLY_SHADE_API) : !!1)
 ];
