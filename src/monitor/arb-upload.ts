@@ -36,7 +36,7 @@ export default class ArbMonitorUploader {
     },
     heightsObs?: Observable<DexHeightSubscription>,
     pricesObs?: Observable<Prices>
-  }, private readonly maxBufferLenght: number) {
+  }, private readonly maxBufferLength: number) {
     this.logger = new Logger(`ArbUpload#${cluster.worker?.id || 'Master'}`);
     execute(`query getAllArbs {
       arb_v1 {
@@ -123,7 +123,7 @@ export default class ArbMonitorUploader {
 
   async uploadManyArbs(arbs: ArbV1Raw[]): Promise<{ rows: any, updateManyArbs: number}> {
     this.buffer.push(...arbs);
-    if (this.buffer.length >= this.maxBufferLenght) {
+    if (this.buffer.length >= this.maxBufferLength) {
       const arbV1Raws = this.buffer;
       this.buffer = [];
       const result = await execute(

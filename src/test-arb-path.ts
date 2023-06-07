@@ -28,9 +28,9 @@ if (cluster.isMaster) {
 }
 const dexProtocols = [
   new OsmosisSwap(process.env.OSMO_RPC_ENDPOINT || 'https://osmosis-rpc.polkachu.com',
-    process.env.OSMO_REST_ENDPOJNT || 'https://osmosis-api.polkachu.com',
+    process.env.OSMO_REST_ENDPOINT || 'https://osmosis-api.polkachu.com',
     10000),
-  new ShadeSwap(process.env.SECRET_RPC_ENDPOJNT || 'https://secretnetwork-rpc.lavenderfive.com:443',
+  new ShadeSwap(process.env.SECRET_RPC_ENDPOINT || 'https://secretnetwork-rpc.lavenderfive.com:443',
     process.env.SECRET_USE_ONLY_SHADE_API ?
       JSON.parse(process.env.SECRET_USE_ONLY_SHADE_API) : !!1,
     process.env.SECRET_BLOCK_RETRY_TIME ? +JSON.parse(process.env.SECRET_BLOCK_RETRY_TIME) : 2000)
