@@ -124,14 +124,14 @@ let logger;
       initShadeTokens(),
       getPairsRaw(),
     ])
-    const log = logger.log.bind(logger, 'Received pair');
+    const log =  _.debounce(logger.log.bind(logger, 'Received pair'), 500)
     ipc.connectTo(
       'ArbMaster',
       () => {
         ipc.of.ArbMaster.on(
           'ArbPairUpdateLight',
           (data: ArbPairUpdateLight) => {
-            _.debounce(log, 500);
+           log();
             pairsObs.next(data);
           },
         );
