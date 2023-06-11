@@ -3418,8 +3418,8 @@ chainInfos.push({
       coinDenom: "ETH",
       coinMinimalDenom: "weth-wei",
       coinDecimals: 18,
-      // coinGeckoId: "weth",
-      coinGeckoId: "pool:weth-wei",
+      coinGeckoId: "weth",
+      // coinGeckoId: "pool:weth-wei",
       coinImageUrl: "/tokens/eth-white.svg",
     },
     {

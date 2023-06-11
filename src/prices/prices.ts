@@ -90,7 +90,7 @@ export const PRICE_IDS = {
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function getCoinGeckoMap() {
-  return _(ChainInfos).flatMap(({currencies}) => _.map(currencies,
+  const coingeckoMap = _(ChainInfos).flatMap(({currencies}) => _.map(currencies,
       ({
          coinDenom,
          coinGeckoId,
@@ -103,12 +103,13 @@ export function getCoinGeckoMap() {
     .filter(([key]) => !key.includes('.')) // do not include wrapped tokens such as Avalanche.USDC
     .groupBy(d => d[1]) // groupBy coinGeckoId
     .toPairs()
-    .filter(([cgId]) => !cgId || !cgId.includes(':'))
+    .filter(([cgId]) => !cgId || !cgId.includes(':')) // do not include pool:*
     .map(([, pairs]) => {
       return _.minBy(pairs, ([tokenName]) => tokenName.length) // heuristic to choose the shortest representation of a token is probably the real one
     })
     .fromPairs()
     .value();
+  return coingeckoMap;
 }
 
 export const PRICE_IDS_ALL = {
