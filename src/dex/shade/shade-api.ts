@@ -137,7 +137,7 @@ export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[], t0decimals?: num
         [n.id]: parseRawShadePool(n, t0decimals || getTokenDecimals(n.token_0), t1decimals || getTokenDecimals(n.token_1)),
       };
     } catch (err) {
-      logger.log(err.message);
+      logger.log('ParseError', err.message, n);
     }
   }, {});
 }

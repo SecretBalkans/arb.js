@@ -34,7 +34,7 @@ export abstract class DexProtocol<T extends DexProtocolName> implements ICanSwap
             .then(rawPools => {
               this.updateRawPools(rawPools)
               this.isFetchingPools = false;
-              this.logger.log(`${this.name}_pools`, performance.now() - p);
+              this.logger.log(`${this.name}_pools`, performance.now() - p, `(${rawPools.length})`);
               setImmediate(() => {
                 observer.next({
                   pools: this.pools,

@@ -427,11 +427,11 @@ type DexProtocolsUpdate = { dex: DexProtocol<DexProtocolName>, pools: IPool<Pool
 type RawPoolInfo<T extends DexProtocolName> = T extends 'osmosis' ? OsmosisPoolRaw : ShadePair;
 
 function isOsmosisPoolRaw(rawPoolInfo: RawPoolInfo<DexProtocolName>): rawPoolInfo is OsmosisPoolRaw {
-  return !!(rawPoolInfo as OsmosisPoolRaw)["@type"];
+  return rawPoolInfo && !!(rawPoolInfo as OsmosisPoolRaw)["@type"];
 }
 
 function isOsmosisPoolInfo(poolInfo: PoolInfo<DexProtocolName>): poolInfo is PoolInfo<'osmosis'> {
-  return !!(poolInfo as PoolInfo<'osmosis'>).raw;
+  return !!(poolInfo as PoolInfo<'osmosis'>)?.raw;
 }
 
 export class DexStore {
