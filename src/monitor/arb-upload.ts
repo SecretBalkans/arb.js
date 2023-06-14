@@ -85,7 +85,7 @@ export default class ArbMonitorUploader {
             })
           } else {
             this.updateManyArbTs([arbPath.id], this.ts).then((res) => {
-              this.logger.log('TS', res.updateManyTs);
+              this.logger.log('TS', res);
             }).catch(this.logger.error.bind(this.logger));
           }
         },

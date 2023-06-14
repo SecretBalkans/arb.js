@@ -37,7 +37,7 @@ if (cluster.isMaster) {
 }
 const dexProtocols = [
   new OsmosisSwap(process.env.OSMO_RPC_ENDPOINT || 'https://rpc-osmosis.ecostake.com',
-    process.env.OSMO_REST_ENDPOINT || 'https://osmosis.rest.stakin-nodes.com',
+    process.env.OSMO_REST_ENDPOINT || 'https://rest-osmosis.ecostake.com',
     10000),
   new ShadeSwap(process.env.SECRET_RPC_ENDPOINT || 'https://rpc.secret.express/',
     process.env.SECRET_USE_ONLY_SHADE_API ?

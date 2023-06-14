@@ -90,7 +90,7 @@ export function toTokenId(osmoDenom: Denom, pid?, poolTokenId?): Token | NonArbe
 }
 
 export function getTokenDenom(token: Token): { denom: Denom, decimals: number} {
-  const info = tokenToDenomInfo[token];
+  const info = tokenToDenomInfo[token] || tokenToDenomInfo[token.toUpperCase()];
   if(!info) {
     throw new Error(`${token} denom/decimals info not found`)
   }
