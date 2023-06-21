@@ -78,7 +78,7 @@ export const SwapTokenMap: Record<SwapToken, Token> = {
   JUNO: SwapToken.JUNO as Token,
   stJUNO: SwapToken.stJUNO as Token,
   BLD: SwapToken.BLD as Token,
-  JKL: SwapToken.JKL as Token,
+  JKL: SwapToken.JKL  as Token,
   INJ: SwapToken.INJ as Token,
   USK: SwapToken.USK as Token,
   KUJI : SwapToken.KUJI as Token,

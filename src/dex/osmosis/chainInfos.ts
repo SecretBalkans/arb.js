@@ -2800,7 +2800,7 @@ const chainInfos = (
           coinDenom: "JKL",
           coinMinimalDenom: "ujkl",
           coinDecimals: 6,
-          coinGeckoId: "pool:jkl",
+          coinGeckoId: "jackal-protocol",
           coinImageUrl: "/tokens/jkl.svg",
           isStakeCurrency: true,
           isFeeCurrency: true,

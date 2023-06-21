@@ -96,7 +96,7 @@ export default class ArbMonitorUploader {
     });
     subscribes.pricesObs?.subscribe(prices => {
       this.uploadPrices(prices).then(result => {
-        const gqlError = this.getGQLErrors(result);
+        const gqlError = ArbMonitorUploader.getGQLErrors(result);
         if (gqlError) {
           throw new Error(JSON.stringify({
             type: 'gqlPrices',
@@ -107,7 +107,7 @@ export default class ArbMonitorUploader {
     })
     subscribes.heightsObs?.subscribe((data) => {
       this.uploadHeights([{dex: data.dex.name, height: data.height}]).then(result => {
-        const gqlError = this.getGQLErrors(result);
+        const gqlError = ArbMonitorUploader.getGQLErrors(result);
         if (gqlError) {
           throw new Error(JSON.stringify({
             type: 'gqlHeights',
@@ -147,7 +147,7 @@ export default class ArbMonitorUploader {
   `, {
           objects: _.uniqBy(arbV1Raws, a => a.id),
         });
-      const gqlErrors = this.getGQLErrors(result);
+      const gqlErrors = ArbMonitorUploader.getGQLErrors(result);
       if (gqlErrors) {
         throw new Error(JSON.stringify({
           arbs: _.map(arbs, arb => [arb.id, arb.reverse_id]),
@@ -161,7 +161,7 @@ export default class ArbMonitorUploader {
     }
   }
 
-  private getGQLErrors(result) {
+  private static getGQLErrors(result) {
     if (result.errors) {
       return {
         ..._.pick(result.errors[0].extensions, ['code', 'internal.error.hint', 'path']),

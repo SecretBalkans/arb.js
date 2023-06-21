@@ -86,6 +86,7 @@ export const PRICE_IDS = {
   scrt: 'secret',
   sienna: 'sienna',
   inj: 'injective',
+  jkl: 'jackal-protocol'
 };
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
