@@ -39,7 +39,6 @@ export class ArbWallet {
   rateLimitedFn(fn, rateLimitMs, key) {
     let lastInvocationTime = Date.now();
     let inFlight = 0;
-    console.log('rateLimit', key)
     const CONTRACT_MSG_CACHE = this.CONTRACT_MSG_CACHE;
     return async function (arg) {
       let cached;
@@ -58,7 +57,6 @@ export class ArbWallet {
       if (timeUntilNextInvocation > 0) {
         await new Promise(resolve => setTimeout(resolve, timeUntilNextInvocation));
       }
-      console.log(key, `wait ${timeUntilNextInvocation}`);
 
       const result = await fn(arg);
       inFlight--;
