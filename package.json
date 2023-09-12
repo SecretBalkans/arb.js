@@ -28,7 +28,7 @@
     "node-fetch": "2.6.9",
     "node-ipc": "^11.1.0",
     "osmojs": "^15.2.1",
-    "secretjsbeta": "npm:secretjs@^1.8.1"
+    "secretjsbeta": "npm:secretjs@^1.9.3"
   },
   "devDependencies": {
     "@types/jest": "^26.0.23",

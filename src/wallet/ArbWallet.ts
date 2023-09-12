@@ -11,8 +11,7 @@ import {SignDoc} from 'secretjsbeta/dist/protobuf/cosmos/tx/v1beta1/tx';
 import {serializeSignDoc, serializeStdSignDoc} from './signUtils';
 import _ from 'lodash';
 import {SecretContractAddress} from '../dex/shade/types';
-
-export type ArbWalletConfig = { mnemonic?: string, privateHex?: string, secretNetworkViewingKey?: string, secretLcdUrl?: string };
+export type ArbWalletConfig = { mnemonic?: string, privateHex?: string, secretNetworkViewingKey?: string, secretLcdUrlsMany?: string[], secretLcdUrlsRateLimitsMany?: number[] };
 
 export enum ArbChain {
   SECRET,
@@ -32,10 +31,42 @@ export class ArbWallet {
   private readonly CODE_HASH_CACHE = {};
   private readonly CONTRACT_MSG_CACHE = {};
   private secretClient: SecretNetworkClient;
-  private secretQueryClient: SecretNetworkClient;
-
+  private secretQueryClients: SecretNetworkClient[] = [];
+  rateLimitedCalls: any = {};
   constructor(config: ArbWalletConfig) {
     this.config = config;
+  }
+  rateLimitedFn(fn, rateLimitMs, key) {
+    let lastInvocationTime = Date.now();
+    let inFlight = 0;
+    console.log('rateLimit', key)
+    const CONTRACT_MSG_CACHE = this.CONTRACT_MSG_CACHE;
+    return async function (arg) {
+      let cached;
+      const cacheKey = `${arg.contractAddress}.${Object.getOwnPropertyNames(arg.msg)[0]}`;
+      // tslint:disable-next-line:no-conditional-assignment
+      if (arg.useResultCache && (cached = _.get(CONTRACT_MSG_CACHE, cacheKey))) {
+        return {...cached, cached: true};
+      }
+      const now = Date.now();
+      const timeSinceLastInvocation = now - lastInvocationTime;
+      const timeUntilNextInvocation = Math.max(0, rateLimitMs * inFlight - timeSinceLastInvocation);
+
+      inFlight++;
+      lastInvocationTime = Date.now();
+
+      if (timeUntilNextInvocation > 0) {
+        await new Promise(resolve => setTimeout(resolve, timeUntilNextInvocation));
+      }
+      console.log(key, `wait ${timeUntilNextInvocation}`);
+
+      const result = await fn(arg);
+      inFlight--;
+      if (arg.useResultCache) {
+        _.set(CONTRACT_MSG_CACHE, cacheKey, result);
+      }
+      return result;
+    };
   }
 
   private getChainConfig(chain: ArbChain): ArbChainConfig {
@@ -140,12 +171,14 @@ export class ArbWallet {
 
   public async getSecretNetworkClient({
                                         chain = ArbChain.SECRET,
-                                        url = this.config.secretLcdUrl,
-                                        queryOnly = false
-                                      }: { chain?: ArbChain, url?: string, queryOnly?: boolean } = {}): Promise<SecretNetworkClient> {
-    if ((queryOnly && !this.secretQueryClient) || (!queryOnly && !this.secretClient)) {
+                                        parallelizeQueryIndex,
+                                      }: { chain?: ArbChain, parallelizeQueryIndex?: number } = {}): Promise<SecretNetworkClient> {
+    const queryClientIndex = this.getQueryClientIndex(parallelizeQueryIndex);
+    const isForQueryClient = parallelizeQueryIndex !== undefined;
+    if (isForQueryClient && !this.secretQueryClients[queryClientIndex] || (!isForQueryClient && !this.secretClient)) {
+      const url = this.config.secretLcdUrlsMany[queryClientIndex];
       const getSecretPen = this.getSecretPen.bind(this);
-      const senderAddress = queryOnly ? null : await this.getAddress(chain);
+      const senderAddress = isForQueryClient ? null : await this.getAddress(chain);
       const client = new SecretNetworkClient({
         url,
         wallet: {
@@ -153,7 +186,7 @@ export class ArbWallet {
             signerAddress: string,
             signDoc: StdSignDoc,
           ): Promise<AminoSignResponse> {
-            if (queryOnly) {
+            if (isForQueryClient) {
               throw new Error('Query only secret client cannot be used for signing');
             }
             const accounts = await this.getAccounts();
@@ -175,7 +208,7 @@ export class ArbWallet {
             readonly signed: SignDoc;
             readonly signature: StdSignature;
           }> {
-            if (queryOnly) {
+            if (isForQueryClient) {
               throw new Error('Query only secret client cannot be used for signing');
             }
             const accounts = await this.getAccounts();
@@ -193,7 +226,7 @@ export class ArbWallet {
             };
           },
           async getAccounts(): Promise<readonly AccountData[]> {
-            if (queryOnly) {
+            if (isForQueryClient) {
               throw new Error('Query only secret client cannot be used for signing');
             }
             return [
@@ -208,14 +241,18 @@ export class ArbWallet {
         chainId: this.getChainConfig(chain).chainId,
         walletAddress: senderAddress,
       });
-      if (queryOnly) {
-        this.secretQueryClient = client
+      if (isForQueryClient) {
+        this.secretQueryClients[queryClientIndex] = client;
       } else {
-        this.secretClient = client
+        this.secretClient = client;
       }
     }
 
-    return queryOnly ? this.secretQueryClient : this.secretClient;
+    return isForQueryClient ? this.secretQueryClients[queryClientIndex] : this.secretClient;
+  }
+
+  private getQueryClientIndex(parallelizeQueryIndex: number) {
+    return parallelizeQueryIndex % this.config.secretLcdUrlsMany.length;
   }
 
   public async getAddress(chain: ArbChain, suffix = '0'): Promise<string> {
@@ -225,59 +262,52 @@ export class ArbWallet {
   }
 
   /**
-   * Gets the secret balance of an asset by address and decimals to pass.
-   * TODO: just pass decimals and handle SNIP-20/SNIP-25 by querying token info and fetching the decimals
-   * @param asset.address string
-   * @param asset.decimals number
-   */
-  public async getSecretBalance(asset: { address: SecretContractAddress, decimals: number }): Promise<number> {
-    const client = await this.getSecretNetworkClient();
-    const result = await this.querySecretContract(asset.address, {
-      balance: {
-        key: this.config.secretNetworkViewingKey,
-        address: client.address,
-      },
-    }) as any;
-    if (result.viewing_key_error?.msg === 'Wrong viewing key for this address or viewing key not set') {
-      await this.executeSecretContract(asset.address, {
-        set_viewing_key: {
-          key: this.config.secretNetworkViewingKey,
-        },
-      }, 0.00155);
-      return this.getSecretBalance(asset);
-    }
-    return +result.balance.amount / (10 ** asset.decimals);
-  }
-
-  /**
    * Query a secret smart contract by address and by passing a msg
    * @param contractAddress string The address of the contract to query
    * @param msg object A JSON object that will be passed to the contract as a query
+   * @param parallelizeQueryIndex
    * @param codeHash optional for faster resolution
    * @param useResultCache allow caching of result. Useful if querying static blockchain data
    */
-  public async querySecretContract<T extends object, R extends any>(contractAddress: SecretContractAddress, msg: T, codeHash?: string, useResultCache = false) {
-    const client = await this.getSecretNetworkClient({queryOnly: true});
-    if (codeHash || !this.CODE_HASH_CACHE[contractAddress]) {
-      this.CODE_HASH_CACHE[contractAddress] = (await client.query.compute.codeHashByContractAddress({contract_address: contractAddress})).code_hash;
+  public async querySecretContract<T extends object, R extends any>({
+                                                                      contractAddress,
+                                                                      msg,
+                                                                      parallelizeQueryIndex,
+                                                                      codeHash,
+                                                                      useResultCache = false
+                                                                    }: { contractAddress: SecretContractAddress, msg: T, parallelizeQueryIndex: number, codeHash?: string, useResultCache?: boolean }) {
+    const key = `${this.getQueryClientIndex(parallelizeQueryIndex)}`;
+    if(!this.rateLimitedCalls[key]) {
+      const func = async ({
+                            contractAddress: _contractAddress,
+                            msg: _msg,
+                            parallelizeQueryIndex: _parallelizeQueryIndex,
+                            codeHash: _codeHash,
+                          }) => {
+        const client = await this.getSecretNetworkClient({ parallelizeQueryIndex: _parallelizeQueryIndex });
+        if (_codeHash || !this.CODE_HASH_CACHE[_contractAddress]) {
+          this.CODE_HASH_CACHE[_contractAddress] = (await client.query.compute.codeHashByContractAddress({ contract_address: _contractAddress })).code_hash;
+        } else {
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+        const result = await client.query.compute.queryContract<T, R>({
+          code_hash: _codeHash || this.CODE_HASH_CACHE[_contractAddress],
+          contract_address: _contractAddress,
+          query: _msg,
+        });
+        if (result) {
+          this.CODE_HASH_CACHE[_contractAddress] = this.CODE_HASH_CACHE[_contractAddress] || _codeHash;
+          return result;
+        }
+      };
+      this.rateLimitedCalls[key] = this.rateLimitedFn(func,
+        this.config.secretLcdUrlsRateLimitsMany[this.getQueryClientIndex(parallelizeQueryIndex)], key);
     }
-    let cached;
-    const cacheKey = `${contractAddress}.${Object.getOwnPropertyNames(msg)[0]}`;
-    // tslint:disable-next-line:no-conditional-assignment
-    if (useResultCache && (cached = _.get(this.CONTRACT_MSG_CACHE, cacheKey))) {
-      return cached;
-    }
-    const result = await client.query.compute.queryContract<T, R>({
-      code_hash: codeHash || this.CODE_HASH_CACHE[contractAddress],
-      contract_address: contractAddress,
-      query: msg,
-    });
-    if (result) {
-      if (useResultCache) {
-        _.set(this.CONTRACT_MSG_CACHE, cacheKey, result);
-      }
-      this.CODE_HASH_CACHE[contractAddress] = this.CODE_HASH_CACHE[contractAddress] || codeHash;
-      return result;
+    try {
+      return await (this.rateLimitedCalls[key])(...arguments);
+    } catch (err) {
+      console.log(err);
+      throw err;
     }
   }
 

@@ -1,16 +1,15 @@
 /* tslint:disable:one-variable-per-declaration */
-import {fetchTimeout, Logger} from '../../utils';
+import { fetchTimeout, Logger } from '../../utils';
 import _ from 'lodash';
 import Aigle from 'aigle';
-import {ArbWallet} from '../../wallet/ArbWallet';
-import config from '../../config';
+import { ArbWallet } from '../../wallet/ArbWallet';
 import {
   SecretContractAddress,
   Snip20Token,
   TokenPriceInfo,
 } from './types';
-import {safeJsonStringify} from '../../utils/safe-json-stringify';
-import {ShadeRoutePoolEssentialsIdMap} from "./shade-calc";
+import { safeJsonStringify } from '../../utils/safe-json-stringify';
+import { ShadeRoutePoolEssentialsIdMap } from './shade-calc';
 import {
   getPairsRaw,
   getTokenPrices,
@@ -18,12 +17,33 @@ import {
   ShadePair,
   TokenPairInfoRaw,
   tokens,
-  useTokens
+  useTokens,
 } from './shade-api-utils';
+
+const secretLcdUrlsMany = process.env.SECRET_REST_ENDPOINT_MANY ?
+  JSON.parse(process.env.SECRET_REST_ENDPOINT_MANY) :
+  [
+    'https://secret-4.api.trivium.network:1317',
+    // 'https://secretnetwork-api.lavenderfive.com:443',
+    'https://1rpc.io/scrt-lcd',
+    // 'https://secretnetwork-api.highstakes.ch:1317/',
+    'https://secret-api.bharvest.io',
+    'https://lcd.spartanapi.dev',
+  ];
+const secretLcdUrlsRateLimitsMany = process.env.SECRET_REST_URL_RATE_LIMITS_MANY ? JSON.parse(process.env.SECRET_REST_URL_RATE_LIMITS_MANY) :
+  [
+    850,
+    // 1400,
+    300,
+    // 4000,
+    800,
+    500
+  ];
 
 const arb = new ArbWallet({
   // secretLcdUrl: 'https://lcd.secret.express',
-  secretLcdUrl: 'https://lcd-secret.keplr.app',
+  secretLcdUrlsMany,
+  secretLcdUrlsRateLimitsMany,
   // secretLcdUrl: 'https://secret-api.lavenderfive.com:443'
 });
 
@@ -33,18 +53,22 @@ export async function getPegPrice(): Promise<number> {
 }
 
 const logger = new Logger('ShadeRest');
+let prices;
 
 export async function getShadePairs(cached: boolean): Promise<ShadePair[]> {
-  const prices = await getTokenPrices();
+  try {
+    prices = await getTokenPrices();
+  } catch (e) {
+  }
   const pairInfoRaws = await getPairsRaw(cached);
-  return Aigle.mapLimit(pairInfoRaws.filter(d => +d.token_0_amount > 10), 5, async cachePairInfo => {
+  return Aigle.mapLimit(pairInfoRaws.filter(d => +d.token_0_amount > 10), secretLcdUrlsMany.length, async (cachePairInfo, index) => {
     for (let i = 0; i < 3; i++) {
       try {
-        return await getTokenPairInfo(cachePairInfo, prices, cached);
+        return await getTokenPairInfo(cachePairInfo, prices, index, cached);
       } catch (err) {
-        logger.debugOnce('getTokenPairInfo', err);
+        logger.debugOnce(err.message, err);
       }
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
     return;
   });
@@ -58,31 +82,49 @@ function fromDenomString(inputAmount: string, decimals: number): number {
 function getTokenQueryLogInfo(token0: any, token1: any, rawInfo?: any) {
   return JSON.stringify({
     token0: token0.name,
-    token1: token1.name, ...(rawInfo ? {contract: rawInfo.contract.address} : {})
+    token1: token1.name, ...(rawInfo ? { contract: rawInfo.contract.address } : {}),
   });
 }
 
-async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInfo[], cached = false): Promise<ShadePair> {
-  const lpToken = _.find(tokens, {id: rawInfo.lp_token});
-  const token0 = _.find(tokens, {id: rawInfo.token_0});
-  const token1 = _.find(tokens, {id: rawInfo.token_1});
+async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInfo[], parallelizeQueryIndex: number, cached = false): Promise<ShadePair> {
+  const lpToken = _.find(tokens, { id: rawInfo.lp_token });
+  const token0 = _.find(tokens, { id: rawInfo.token_0 });
+  const token1 = _.find(tokens, { id: rawInfo.token_1 });
   let tokenInfos;
   try {
-    tokenInfos = await Aigle.all([
+    tokenInfos = await Aigle.series([
       arb.querySecretContract<any, {
         'token_info': Snip20Token
-      }>(lpToken.contract_address, {'token_info': {}}, lpToken.code_hash, true),
+      }>({
+        contractAddress: lpToken.contract_address,
+        msg: { 'token_info': {} },
+        parallelizeQueryIndex: parallelizeQueryIndex,
+        codeHash: lpToken.code_hash,
+        useResultCache: true
+      }),
       arb.querySecretContract<any, {
         'token_info': Snip20Token
-      }>(token0.contract_address, {'token_info': {}}, token0.code_hash, true),
+      }>({
+        contractAddress: token0.contract_address,
+        msg: { 'token_info': {} },
+        parallelizeQueryIndex: parallelizeQueryIndex,
+        codeHash: token0.code_hash,
+        useResultCache: true
+      }),
       arb.querySecretContract<any, {
         'token_info': Snip20Token
-      }>(token1.contract_address, {'token_info': {}}, token1.code_hash, true),
+      }>({
+        contractAddress: token1.contract_address,
+        msg: { 'token_info': {} },
+        parallelizeQueryIndex: parallelizeQueryIndex,
+        codeHash: token1.code_hash,
+        useResultCache: true
+      }),
     ]);
   } catch (err) {
     throw new Error(`Get the token_infos ${getTokenQueryLogInfo(token0, token1)}: ${safeJsonStringify(err)}`);
   }
-  const [{token_info: lpTokenInfo}, {token_info: t0}, {token_info: t1}] = tokenInfos;
+  const [{ token_info: lpTokenInfo }, { token_info: t0 }, { token_info: t1 }] = tokenInfos;
   let pairInfoResult;
   try {
     pairInfoResult = await arb.querySecretContract<any, {
@@ -90,15 +132,19 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
         amount_0: string,
         amount_1: string,
       }
-    }>(rawInfo.contract.address as SecretContractAddress,
-      {'get_pair_info': {}},
-      rawInfo.contract.code_hash, cached);
+    }>({
+      contractAddress: rawInfo.contract.address as SecretContractAddress,
+      msg: { 'get_pair_info': {} },
+      parallelizeQueryIndex: parallelizeQueryIndex,
+      codeHash: rawInfo.contract.code_hash,
+      useResultCache: cached
+    });
   } catch (err) {
     throw new Error(`Get the get_pair_info ${getTokenQueryLogInfo(token0, token1, rawInfo)} ${err.message} ${err.stack}`);
   }
-  const {get_pair_info: pairInfo} = pairInfoResult;
-  const price0 = +_.find(prices, {id: token0.price_id})?.value;
-  const price1 = +_.find(prices, {id: token1.price_id})?.value;
+  const { get_pair_info: pairInfo } = pairInfoResult;
+  const price0 = +_.find(prices, { id: token0.price_id })?.value;
+  const price1 = +_.find(prices, { id: token1.price_id })?.value;
 
   if (cached) {
     // Use shade api
@@ -129,15 +175,15 @@ async function getTokenPairInfo(rawInfo: TokenPairInfoRaw, prices: TokenPriceInf
 
 export function parsePoolsRaw(rawPairsInfo: TokenPairInfoRaw[], t0decimals?: number, t1decimals?: number): ShadeRoutePoolEssentialsIdMap {
   const t = useTokens()
-    , {getTokenDecimals: getTokenDecimals} = t
-  return rawPairsInfo.reduce((agg, n) => {
+    , { getTokenDecimals: getTokenDecimals } = t;
+  return rawPairsInfo.reduce((agg, rawInfo) => {
     try {
       return {
         ...agg,
-        [n.id]: parseRawShadePool(n, t0decimals || getTokenDecimals(n.token_0), t1decimals || getTokenDecimals(n.token_1)),
+        [rawInfo.id]: parseRawShadePool(rawInfo, t0decimals || getTokenDecimals(rawInfo.token_0), t1decimals || getTokenDecimals(rawInfo.token_1)),
       };
     } catch (err) {
-      logger.log('ParseError', err.message, n);
+      logger.log('ParseError', err.message, err.stack, { rawInfo });
     }
   }, {});
 }
